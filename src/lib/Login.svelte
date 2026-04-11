@@ -1,14 +1,17 @@
 <script lang="ts">
-  import * as pdfjsLib from 'pdfjs-dist';
-  import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-  import mammoth from 'mammoth';
   import { slide } from 'svelte/transition';
-  import resume_gif from '../assets/my_career_fair_resumes.gif'
+  import resume_gif from '../assets/my_career_fair_resumes.gif';
+  import { extract_text, type Resume } from './resume_utils';
 
-  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
+  /* 
+   * onlogin      -> enter() on App, transitions into game
+   * parse_error  -> API call error
+   * logging_in   -> controls submit loading spinner
+  */
+  let { on_login, parse_error } = $props();
+  let logging_in = $state(false);
 
-  let { onlogin }: { onlogin: (text: string) => void } = $props();
-
+  // place gifs randomly around screen
   function generateGifPositions() {
     const positions: Array<{ left: number; top: number }> = [];
     let attempts = 0;
@@ -17,8 +20,6 @@
       // [8, 92)
       const left = 8 + Math.random() * 84;
       const top  = 8 + Math.random() * 84
-      // Exclude center
-      // if (left > 30 && left < 70 && top > 30 && top < 70) {continue;}
       // Avoid overlap with already-placed gifs
       if (positions.some(p => Math.abs(p.left - left) < 20 && Math.abs(p.top - top) < 20)) {continue;}
       positions.push({ left, top });
@@ -28,50 +29,24 @@
 
   const gifPositions = generateGifPositions();
 
+  /*
+   * resume       -> in this component, bound to files of input
+   * resume_text  -> extracted resume string
+   * error        -> text extraction error
+  */
   let resume: FileList | null | undefined = $state();
   let resume_text: string | null = $state(null);
   let error: string | null = $state(null);
 
-  async function extractText(file: File): Promise<string> {
-    const type = file.type;
-    const name = file.name.toLowerCase();
-
-    if (type === 'text/plain' || name.endsWith('.txt')) {
-      return await file.text();
-    }
-
-    if (type === 'application/pdf' || name.endsWith('.pdf')) {
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      const pages: string[] = [];
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const content = await page.getTextContent();
-        pages.push(content.items.map((item: any) => item.str + (item.hasEOL ? '\n' : ' ')).join(''));
-      }
-      return pages.join('\n');
-    }
-
-    if (
-      type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-      name.endsWith('.docx')
-    ) {
-      const arrayBuffer = await file.arrayBuffer();
-      const result = await mammoth.extractRawText({ arrayBuffer });
-      return result.value;
-    }
-
-    throw new Error(`Unsupported file type: ${file.name}`);
-  }
-
   $effect(() => {
-    if (!resume) return;
+    if (parse_error) { logging_in = false; }
+    if (!resume) { resume_text = null; return; }
     error = null;
-    resume_text = null;
-    extractText(resume[0])
-      .then((text) => { resume_text = text; console.log(text) })
-      .catch((e) => { console.log(e.message) });
+    extract_text(resume[0])
+      .then((text) => { resume_text = text.slice(0, 4096); })
+      .catch((e) => { console.log(e.message); error = e.message; });
   });
+  
 </script>
 
 <div id="login-container" class="full">
@@ -103,15 +78,33 @@
       {/if}
     </div>
     {#if error}
-    <p id="error">{error}</p>
+    <p class="error">{error}</p>
     {/if}
     {#if resume_text}
-    <button in:slide onclick={() => onlogin(resume_text!)}>Vaporize my CV!</button>
+    <div id="submit-row">
+      <button id="login" in:slide onclick={() => { on_login(resume_text, false); logging_in = true; }}>Vaporize my CV!</button>
+      {#if logging_in}
+      <div in:slide={{ axis: 'x' }} class="spinner" style="width: 50px; height: 50px;"></div>
+      {/if}
+    </div>
     {/if}
+    {#if parse_error}
+    <p class="error" in:slide>{parse_error}</p>
+    {/if}
+    <button id="alt" onclick={() => on_login('', true)}>Use mine instead</button>
   </div>
 </div>
 
+<div id="footer">I don't save your stuff. I genuinely do not care</div>
+
 <style>
+  #footer {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    color: #555;
+    font-size: 1.5rem;
+  }
   #login-container {
     position: relative;
     width: 100%;
@@ -180,7 +173,7 @@
     padding: 30px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
   }
-  button {
+  #login {
     text-align: center;
     font-size: 40pt;
     margin: 0;
@@ -189,6 +182,17 @@
     padding: 20px;
     -webkit-text-stroke: 2px #BBB;
     text-stroke: 2px #BBB;
+    background-color: #222;
+  }
+  #alt {
+    text-align: center;
+    font-size: 15pt;
+    margin: 0;
+    font-family: inherit;
+    color: inherit;
+    padding: 8px;
+    /* -webkit-text-stroke: 2px #BBB;
+    text-stroke: 2px #BBB; */
     background-color: #222;
   }
   p {
@@ -214,8 +218,16 @@
   @keyframes spin {
     to { transform: rotate(360deg); }
   }
-  #error {
+  .error {
     font-size: 16pt;
     color: #F55;
+  }
+  #submit-row {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
   }
 </style>

@@ -1,9 +1,10 @@
 <script lang="ts">
      import { onMount } from "svelte";
      import Resume from "./Resume.svelte";
+     import type { Resume as ResumeType } from './resume_utils';
      let score = $state(0);
      let time = $state(600);
-     let { resume_text } = $props();
+     let { resume }: { resume: ResumeType | null } = $props();
      onMount(() => {
           setInterval(() => {
                time -= 1;
@@ -18,7 +19,18 @@
                <span>Application Window: {time}s</span>
           </div>
           <div id="upgrades"> 
-               <div class="upgrade">RAAAAAAH</div>
+               <div id="upgrades-left" class="upgrades-pane">
+                    <div class="upgrade">
+                         <p>Printer speed</p>
+                         <button>Woop</button>
+                    </div>
+               </div>
+               <div id="upgrades-right" class="upgrades-pane">
+                    <div class="upgrade">
+                         <p>Printer speed</p>
+                         <button>Woop</button>
+                    </div>
+               </div>
           </div>
      </div>
 </div>
@@ -68,10 +80,9 @@
           border-radius: 10px;
           box-shadow: 10px 10px #222;
           display: flex;
-          flex-direction: column;
+          flex-direction: row;
           justify-content: space-around;
           align-items: center;
-          gap: 20px;
      }
      .upgrade {
           width: 30%;
@@ -80,5 +91,9 @@
           background: #222;
           padding: 10px;
           text-align: center;
+     }
+     .upgrades-pane {
+          width: 40%;
+          height: 90%;
      }
 </style>

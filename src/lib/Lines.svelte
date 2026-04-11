@@ -18,7 +18,6 @@
      onMount(async () => {
           await new Promise((r) => setTimeout(r, 200));
           var int = setInterval(() => {
-               console.log('what')
                if (++step > 75) {clearInterval(int);}
           }, 20);
      });
