@@ -48,7 +48,7 @@
 <!-- Wait for the lines animation to play, then render the game -->
 {#await new Promise((r) => setTimeout(r, 1700)) }
 <Lines />
-{:then _}
+{:then}
 <div in:scale={{ start: 0, duration: 600 }}>
   <Game {resume} />
 </div>

@@ -15,20 +15,34 @@
 <div id="game-container">
      <div id="window">
           <div id="hud">
-               <span>Cope: {score}</span>
+               <span>Cope: {score.toLocaleString()}</span>
                <span>Application Window: {time}s</span>
           </div>
           <div id="upgrades"> 
-               <div id="upgrades-left" class="upgrades-pane">
-                    <div class="upgrade">
-                         <p>Printer speed</p>
-                         <button>Woop</button>
+               <div id="panes">
+                    <div id="upgrades-left" class="upgrades-pane">
+                         <div class="upgrade">
+                              <p>Printer speed</p>
+                              <button>Buy</button>
+                              <p>45 Cope</p>
+                         </div>
+                    </div>
+                    <div id="upgrades-right" class="upgrades-pane">
+                         <div class="upgrade">
+                              <p>Printer speed</p>
+                              <button>Buy</button>
+                              <p>45 Cope</p>
+                         </div>
                     </div>
                </div>
-               <div id="upgrades-right" class="upgrades-pane">
-                    <div class="upgrade">
-                         <p>Printer speed</p>
-                         <button>Woop</button>
+               <div id="resume">
+                    <Resume {resume} height={330} width={275} />
+                    <div id="resume-upgrades">
+                         <div class="upgrade">
+                              <p>Printer speed</p>
+                              <button>Buy</button>
+                              <p>45 Cope</p>
+                         </div>
                     </div>
                </div>
           </div>
@@ -80,20 +94,49 @@
           border-radius: 10px;
           box-shadow: 10px 10px #222;
           display: flex;
+          flex-direction: column;
+          justify-content: space-around;
+          align-items: center;
+     }
+     #panes, #resume {
+          width: 100%;
+          display: flex;
           flex-direction: row;
           justify-content: space-around;
           align-items: center;
      }
      .upgrade {
-          width: 30%;
-          height: 100px;
+          width: 80%;
           border-radius: 5px;
           background: #222;
           padding: 10px;
           text-align: center;
+          font-size: 1.5rem;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+     }
+     button {
+          background-color: #8c00dc;
+          font-family: inherit;
+          font-size: 1.5rem;
+          color: #DDD;
      }
      .upgrades-pane {
           width: 40%;
-          height: 90%;
+     }
+     #resume-upgrades {
+          width: 20%;
+     }
+     .upgrades-pane, #resume-upgrades {
+          height: 80%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: space-around;
+     }
+     p {
+          margin: 0;
+          padding: 0;
      }
 </style>

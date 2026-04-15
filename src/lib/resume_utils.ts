@@ -8,6 +8,7 @@ export type ExperienceEntry = {
   company: string;
   title: string;
   description: string;
+  basic_description: string;
 };
 
 export type Resume = {
@@ -61,32 +62,35 @@ export async function parse_resume(text: string): Promise<string> {
 export const debug_processed = `{
   "name": "Matthew Anderson",
   "skills": [
-    "C",
     "Python",
+    "C",
     "JavaScript",
     "TypeScript",
-    "Svelte",
     "React",
+    "Svelte",
     "SQL",
-    "Java",
-    "HTML",
-    "CSS"
+    "Docker",
+    "Git",
+    "AWS"
   ],
   "experience": [
     {
       "title": "Undergraduate Teaching Assistant",
-      "basic_description": "taught students and held office hours for computer systems classes",
-      "description": "Teach recitations and hold office hours for cumulative ~300 students in Intro to Operating Systems (CS1550) and Computer Organization and Assembly Language (CS0447); ~90% recitation/~50% office hours attendance\\nVast proficiency in systems and computer organization through instruction, including modification of the Linux kernel, simulation and analysis of page tables and virtual memory, CPU simulation using circuit building software, reading and writing assembly, and more"
+      "basic_description": "did some teaching stuff for a bunch of students",
+      "description": "Teach recitations and hold office hours for cumulative ~300 students in Intro to Operating Systems (CS1550) and Computer Organization and Assembly Language (CS0447); ~90% recitation/~50% office hours attendance\\nVast proficiency in systems and computer organization through instruction, including modification of the Linux kernel, simulation and analysis of page tables and virtual memory, CPU simulation using circuit building software, reading and writing assembly, and more",
+      "company": "University of Pittsburgh"
     },
     {
       "title": "Data Analyst and Integrations Engineer",
-      "basic_description": "analyzed data and built stuff to collect information automatically",
-      "description": "Operated on large amount of data from multiple sources using Knowi\\nCreated dashboards that provided crucial employee training insights and greatly increased onboarding efficiency and overall training completion\\nBuilt applications for Kubernetes cluster that automated data collection via API integration and webhooks"
+      "basic_description": "looked at data and made dashboard thingies for training stuff",
+      "description": "Operated on large amount of data from multiple sources using Knowi\\nCreated dashboards that provided crucial employee training insights and greatly increased onboarding efficiency and overall training completion\\nBuilt applications for Kubernetes cluster that automated data collection via API integration and webhooks",
+      "company": "Quantum 5"
     },
     {
-      "title": "Full Stack Web Developer",
-      "basic_description": "made a website thing with buttons and backend stuff that works",
-      "description": "Co-engineered a full-stack circuit simulation platform from an existing codebase using TypeScript and Svelte, enabling real-time modeling of complex digital logic\\nDeveloped custom backend compilation engine to handle nested subcomponent circuits and wiring tunnels"
+      "title": "Full Stack Web Engineer",
+      "basic_description": "made some web apps with front and back end parts",
+      "description": "Co-engineered a full-stack circuit simulation platform from an existing codebase using TypeScript and Svelte, enabling real-time modeling of complex digital logic\\nDeveloped custom backend compilation engine to handle nested subcomponent circuits and wiring tunnels",
+      "company": "LogicAp"
     }
   ]
 }`
