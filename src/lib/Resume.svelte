@@ -4,11 +4,11 @@
 
 <div id="container" style="height: {height}px; width: {width}px; font-size: {width}px;">
      <p class="header" style="font-size: 0.1em; margin-top: 0.5em">{resume.name ? resume.name : 'Jobby McJobFace'}</p>
-     <p class="body" style="font-size: 0.09em;">Skills:</p>
+     <p class="body" style="font-size: 0.09em; margin-left: 0.25em">Skills:</p>
      <p class="body clamp-2" style="font-size: 0.05em;">{resume.skills.join(', ')}</p>
-     <p class="body" style="font-size: 0.09em">Experience:</p>
+     <p class="body" style="font-size: 0.09em; margin-left: 0.25em">Experience:</p>
      {#each resume.experience as exp}
-     <p class="body" style="font-size: 0.055em">{exp.title} @ {exp.company}</p>
+     <p class="body clamp-2" style="font-size: 0.055em">{exp.title} @ {exp.company}</p>
      <p class="body clamp-2" style="font-size: 0.05em; margin-left: 1em">{exp.description}</p>
      {/each}
 </div>

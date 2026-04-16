@@ -2,6 +2,7 @@
      import { onMount } from "svelte";
      import Resume from "./Resume.svelte";
      import type { Resume as ResumeType } from './resume_utils';
+     import GameBg from "./GameBg.svelte";
      let score = $state(0);
      let time = $state(600);
      let { resume }: { resume: ResumeType | null } = $props();
@@ -10,12 +11,14 @@
                time -= 1;
           }, 1000);
      });
+     const formatter = new Intl.NumberFormat('en-US');
 </script>
 
 <div id="game-container">
      <div id="window">
+          <GameBg />
           <div id="hud">
-               <span>Cope: {score.toLocaleString()}</span>
+               <span>Cope: {formatter.format(score)}</span>
                <span>Application Window: {time}s</span>
           </div>
           <div id="upgrades"> 
@@ -65,10 +68,10 @@
           height: calc(90% - 100px);
           border-radius: 30px;
           border-top-width: 100px;
-          border-left-width: 5px;
+          border-left-width: 0px;
+          border-bottom-width: 0px;
           border-right-width: 500px;
-          border-bottom-width: 5px;
-          border-color: #0A0A0A;
+          border-color: #111;
           border-style: solid;
      }
      #hud {
@@ -82,7 +85,7 @@
           align-items: center;
      }
      #hud > span {
-          font-size: 5rem;
+          font-size: 4.5rem;
      }
      #upgrades {
           width: 450px;
