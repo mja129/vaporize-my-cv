@@ -4,27 +4,147 @@
      import type { Resume as ResumeType } from './resume_utils';
      import GameBg from "./GameBg.svelte";
 
-     let score = $state(0);
-     let time = $state(600);
      let { resume }: { resume: ResumeType | null } = $props();
-     onMount(() => {
-          active_resumes = [];
-          setInterval(() => {
-               time -= 1;
-          }, 1000);
-          // setInterval(() => {
-          //      spawn_resume();
-          // }, 5);
-     });
-     const formatter = new Intl.NumberFormat('en-US');
 
-     let print_speed = $state(1);
+     // --- Upgrade constants ---
+     const SKILL_COSTS = [7500, 15000, 35000, 70000, 140000, 275000, 500000];
+     const SKILL_BONUS = 200;
+     const EXP_COSTS = [50000, 150000, 400000];
+     const EXP_BONUSES = [500, 1500, 4000];
+     const MANUAL_DELAY_TIERS = [
+          { cost: 500, delay: 300 },
+          { cost: 2000, delay: 100 },
+          { cost: 6000, delay: 30 },
+          { cost: 15000, delay: 0 },
+     ];
+     const MANUAL_DELAY_LABELS = ['500ms', '300ms', '100ms', '30ms', '0ms'];
+     const AUTO_PRINT_UNLOCK_COST = 8000;
+     const AUTO_PRINT_TIERS = [
+          { cost: 5000, interval: 2000 },
+          { cost: 12000, interval: 1500 },
+          { cost: 25000, interval: 1000 },
+          { cost: 100000, interval: 500 },
+          { cost: 300000, interval: 250 },
+          { cost: 750000, interval: 100 },
+          { cost: 2000000, interval: 50 },
+          { cost: 5000000, interval: 10 },
+     ];
+     const AUTO_PRINT_LABELS = ['3s', '2s', '1.5s', '1s', '0.5s', '0.25s', '0.1s', '0.05s', '0.01s'];
+
+     // --- Core game state ---
+     let score = $state(0);
+     let time = $state(300);
+     let blockPrint = $state(false);
+     let totalDestroyed = $state(0);
+
+     // --- Upgrade state ---
+     let unlockedSkillCount = $state(3);
+     let expUpgraded = $state([false, false, false]);
+     let manualDelayLevel = $state(0);
+     let autoPrintUnlocked = $state(false);
+     let autoPrintLevel = $state(0);
+
+     // --- Resume display sizing ---
+     // RESUME_ASPECT = prop width / prop height, matching flying resumes (102x132)
+     // Resume.svelte has a 5px border on all sides, so rendered size = prop + 10px per axis.
+     // Subtract that border from available space before fitting the ratio.
+     const RESUME_ASPECT = 102 / 132;
+     const RESUME_BORDER = 10;
+     let displayWidth = $state(0);
+     let displayHeight = $state(0);
+     let _avW = $derived(Math.max(0, displayWidth - RESUME_BORDER));
+     let _avH = $derived(Math.max(0, displayHeight - RESUME_BORDER));
+     let resumeDisplayW = $derived(
+          _avH * RESUME_ASPECT <= _avW ? Math.floor(_avH * RESUME_ASPECT) : _avW
+     );
+     let resumeDisplayH = $derived(
+          _avH * RESUME_ASPECT <= _avW ? _avH : Math.floor(_avW / RESUME_ASPECT)
+     );
+
+     // --- Derived values ---
+     let maxSkills = $derived(Math.min(10, resume?.skills.length ?? 0));
+     let nextExpIdx = $derived(expUpgraded.findIndex((u: boolean) => !u));
+     let manualPrintDelay = $derived(
+          manualDelayLevel === 0 ? 500 : MANUAL_DELAY_TIERS[manualDelayLevel - 1].delay
+     );
+     let autoPrintIntervalMs = $derived(
+          autoPrintLevel === 0 ? 3000 : AUTO_PRINT_TIERS[autoPrintLevel - 1].interval
+     );
+     let print_speed = $derived(3 + Math.floor(totalDestroyed / 100));
+
+     let resumeWorth = $derived(
+          50 +
+          Math.max(0, unlockedSkillCount - 3) * SKILL_BONUS +
+          expUpgraded.reduce((acc, upgraded, i) => acc + (upgraded ? EXP_BONUSES[i] : 0), 0)
+     );
+
+     let effectiveResume = $derived(resume ? {
+          name: resume.name,
+          skills: resume.skills.slice(0, unlockedSkillCount),
+          experience: resume.experience.map((exp, i) => ({
+               ...exp,
+               description: expUpgraded[i] ? exp.description : exp.basic_description,
+          })),
+     } : { name: 'Jobby McJobFace', skills: [], experience: [] });
+
+     // --- Buy functions ---
+     function buy_skill() {
+          const idx = unlockedSkillCount - 3;
+          if (unlockedSkillCount >= maxSkills || idx >= SKILL_COSTS.length) return;
+          if (score < SKILL_COSTS[idx]) return;
+          score -= SKILL_COSTS[idx];
+          unlockedSkillCount++;
+     }
+
+     function buy_exp(i: number) {
+          if (expUpgraded[i] || score < EXP_COSTS[i]) return;
+          score -= EXP_COSTS[i];
+          expUpgraded[i] = true;
+     }
+
+     function buy_manual_delay() {
+          if (manualDelayLevel >= MANUAL_DELAY_TIERS.length) return;
+          const cost = MANUAL_DELAY_TIERS[manualDelayLevel].cost;
+          if (score < cost) return;
+          score -= cost;
+          manualDelayLevel++;
+     }
+
+     function buy_auto_print() {
+          if (autoPrintUnlocked || score < AUTO_PRINT_UNLOCK_COST) return;
+          score -= AUTO_PRINT_UNLOCK_COST;
+          autoPrintUnlocked = true;
+     }
+
+     function buy_auto_print_speed() {
+          if (!autoPrintUnlocked || autoPrintLevel >= AUTO_PRINT_TIERS.length) return;
+          const cost = AUTO_PRINT_TIERS[autoPrintLevel].cost;
+          if (score < cost) return;
+          score -= cost;
+          autoPrintLevel++;
+     }
+
+     // --- Auto-print effect: restarts interval when unlocked or speed changes ---
+     $effect(() => {
+          if (!autoPrintUnlocked) return;
+          const interval_ms = autoPrintIntervalMs;
+          const id = setInterval(spawn_resume, interval_ms);
+          return () => clearInterval(id);
+     });
+
+     // --- Formatting & animation bookkeeping ---
+     const formatter = new Intl.NumberFormat('en-US');
      let id = 0;
      let active_resumes: Array<{id: number, worth: number}> = $state([]);
 
      type VaporizeState = { el: HTMLElement; start: number; hr: number; hb: number; dy: number; resolve: (val: [number, number]) => void };
      let active_vaporizations: VaporizeState[] = [];
      let vaporize_raf: number | null = null;
+
+     onMount(() => {
+          active_resumes = [];
+          setInterval(() => { time -= 1; }, 1000);
+     });
 
      function vaporize_loop(now: number) {
           for (let i = active_vaporizations.length - 1; i >= 0; i--) {
@@ -52,7 +172,7 @@
      }
 
      async function print(r: HTMLElement): Promise<void> {
-          const duration = 5000 / print_speed;
+          const duration = Math.max(300, 5000 / print_speed);
           r.style.transform = `translateX(155px) translateY(-100px) rotateX(68deg) rotateZ(39deg)`;
           return new Promise((resolve) => {
                const start = performance.now();
@@ -109,13 +229,18 @@
           });
      }
 
-     function spawn(): any {
+     function spawn_manual(e: MouseEvent): any {
+          if (blockPrint) { return; }
           spawn_resume();
+          if (manualPrintDelay > 0) {
+               blockPrint = true;
+               setTimeout(() => { blockPrint = false; }, manualPrintDelay);
+          }
      }
 
      async function spawn_resume() {
           var new_id = id++;
-          var worth = 50
+          var worth = resumeWorth;
           active_resumes.push({id: new_id, worth});
           await settled();
           var r = document.getElementById(`resume${new_id}`);
@@ -124,6 +249,7 @@
           await fall(r);
           const [tx, ty] = await vaporize(r);
           score += worth;
+          totalDestroyed++;
           await finish(r, tx, ty);
           r.remove();
           active_resumes = active_resumes.filter(res => res.id != new_id);
@@ -138,42 +264,100 @@
           <div id="resumes-container">
                {#each active_resumes as {id, worth} (id)}
                <div id="resume{id}" class="resume-cont">
-                    <Resume {resume} height={132} width={102} />
+                    <Resume resume={effectiveResume} height={132} width={102} />
                     <p style="display: none">+{worth} Cope</p>
                </div>
                {/each}
           </div>
           {@render printer_top()}
+          <div id="print-btn">
+               <button disabled={blockPrint} onclick={spawn_manual}>Print</button>
+          </div>
           <div id="hud">
-               <span>Cope: {formatter.format(score)}</span>
+               <span>Cope: {formatter.format(score)} <small>+{formatter.format(resumeWorth)}/resume</small></span>
                <span>Application Window: {time}s</span>
           </div>
-          <div id="upgrades"> 
+          <div id="upgrades">
                <div id="panes">
-                    <div id="upgrades-left" class="upgrades-pane">
+                    <div class="upgrades-pane">
+                         <p class="pane-title">Manual Print</p>
                          <div class="upgrade">
-                              <p></p>
-                              <button onclick={spawn}>Print Resume</button>
-                              <p></p>
+                              {#if manualDelayLevel >= MANUAL_DELAY_TIERS.length}
+                                   <p>Print Delay</p>
+                                   <p class="upgrade-status">0ms — Maxed!</p>
+                              {:else}
+                                   <p>Print Delay</p>
+                                   <p class="upgrade-status">{MANUAL_DELAY_LABELS[manualDelayLevel]} → {MANUAL_DELAY_LABELS[manualDelayLevel + 1]}</p>
+                                   <button
+                                        onclick={buy_manual_delay}
+                                        disabled={score < MANUAL_DELAY_TIERS[manualDelayLevel].cost}>
+                                        {formatter.format(MANUAL_DELAY_TIERS[manualDelayLevel].cost)} Cope
+                                   </button>
+                              {/if}
                          </div>
                     </div>
-                    <div id="upgrades-right" class="upgrades-pane">
+                    <div class="upgrades-pane">
+                         <p class="pane-title">Auto-Print</p>
+                         {#if !autoPrintUnlocked}
                          <div class="upgrade">
-                              <p>Printer speed</p>
-                              <button>Buy</button>
-                              <p>45 Cope</p>
+                              <p>Unlock Auto-Print</p>
+                              <p class="upgrade-status">prints every 3s</p>
+                              <button onclick={buy_auto_print} disabled={score < AUTO_PRINT_UNLOCK_COST}>
+                                   {formatter.format(AUTO_PRINT_UNLOCK_COST)} Cope
+                              </button>
                          </div>
+                         {:else if autoPrintLevel >= AUTO_PRINT_TIERS.length}
+                         <div class="upgrade">
+                              <p>Auto-Print Speed</p>
+                              <p class="upgrade-status">0.01s — Maxed!</p>
+                         </div>
+                         {:else}
+                         <div class="upgrade">
+                              <p>Auto-Print Speed</p>
+                              <p class="upgrade-status">{AUTO_PRINT_LABELS[autoPrintLevel]} → {AUTO_PRINT_LABELS[autoPrintLevel + 1]}</p>
+                              <button onclick={buy_auto_print_speed} disabled={score < AUTO_PRINT_TIERS[autoPrintLevel].cost}>
+                                   {formatter.format(AUTO_PRINT_TIERS[autoPrintLevel].cost)} Cope
+                              </button>
+                         </div>
+                         {/if}
                     </div>
                </div>
-               <div id="resume">
-                    <Resume {resume} height={330} width={275} />
-                    <div id="resume-upgrades">
-                         <div class="upgrade">
-                              <p>New Skill</p>
-                              <button>Buy</button>
-                              <p>30 Cope</p>
-                         </div>
+               <div id="skill-exp-panes">
+                    <div class="upgrades-pane">
+                         <p class="pane-title">Skills ({unlockedSkillCount}/{maxSkills})</p>
+                         {#if resume && unlockedSkillCount < maxSkills}
+                              {@const nextIdx = unlockedSkillCount - 3}
+                              <div class="upgrade small">
+                                   <p>+ {resume.skills[unlockedSkillCount]}</p>
+                                   <p class="upgrade-status">+{SKILL_BONUS} Cope/resume</p>
+                                   <button onclick={buy_skill} disabled={score < SKILL_COSTS[nextIdx]}>
+                                        {formatter.format(SKILL_COSTS[nextIdx])} Cope
+                                   </button>
+                              </div>
+                         {:else}
+                              <p class="maxed">All skills unlocked!</p>
+                         {/if}
                     </div>
+                    <div class="upgrades-pane">
+                         <p class="pane-title">Experience</p>
+                         {#if resume && nextExpIdx >= 0}
+                              {@const i = nextExpIdx}
+                              <div class="upgrade small">
+                                   <p>{resume.experience[i].company}</p>
+                                   <p class="upgrade-status">+{EXP_BONUSES[i]} Cope/resume</p>
+                                   <button onclick={() => buy_exp(i)} disabled={score < EXP_COSTS[i]}>
+                                        {formatter.format(EXP_COSTS[i])} Cope
+                                   </button>
+                              </div>
+                         {:else if resume}
+                              <p class="maxed">All experience upgraded!</p>
+                         {/if}
+                    </div>
+               </div>
+               <div id="resume-display" bind:clientWidth={displayWidth} bind:clientHeight={displayHeight}>
+                    {#if resumeDisplayW > 0 && resumeDisplayH > 0}
+                         <Resume resume={effectiveResume} width={resumeDisplayW} height={resumeDisplayH} />
+                    {/if}
                </div>
           </div>
      </div>
@@ -236,7 +420,20 @@
      #hud > span {
           font-size: 4.5rem;
      }
+     #hud small {
+          font-size: 0.45em;
+          color: #aaa;
+     }
 
+     #print-btn {
+          position: absolute;
+          bottom: 240px;
+          right: 60px;
+          transform: rotateX(65deg) rotateY(-2deg) rotateZ(30deg);
+     }
+     #print-btn button {
+          font-size: 55px;
+     }
      #printer-top, #printer-tray {
           position: absolute;
           bottom: 100px;
@@ -261,18 +458,39 @@
           box-shadow: 10px 10px #222;
           display: flex;
           flex-direction: column;
-          justify-content: space-around;
-          align-items: center;
+          gap: 10px;
+          padding: 12px;
+          box-sizing: border-box;
+          overflow: hidden;
      }
-     #panes, #resume {
-          width: 100%;
+     #panes {
           display: flex;
           flex-direction: row;
-          justify-content: space-around;
+          gap: 10px;
+          flex-shrink: 0;
+     }
+     .upgrades-pane {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+     }
+     #skill-exp-panes {
+          display: flex;
+          flex-direction: row;
+          gap: 10px;
+          flex-shrink: 0;
+     }
+     #resume-display {
+          flex: 1;
+          min-height: 0;
+          width: 100%;
+          overflow: hidden;
+          display: flex;
           align-items: center;
+          justify-content: center;
      }
      .upgrade {
-          width: 80%;
           border-radius: 5px;
           background: #222;
           padding: 10px;
@@ -280,26 +498,49 @@
           font-size: 1.5rem;
           display: flex;
           flex-direction: column;
-          gap: 10px;
+          gap: 8px;
+     }
+     .upgrade.small {
+          font-size: 1.3rem;
+          padding: 7px;
+          gap: 5px;
+     }
+
+     .pane-title {
+          font-size: 1.2rem;
+          font-weight: bold;
+          text-align: center;
+          color: #aaa;
+          margin: 0;
+          padding: 0;
+     }
+     .upgrade-status {
+          font-size: 0.85em;
+          color: #aaa;
+          margin: 0;
+          padding: 0;
+     }
+     .maxed {
+          font-size: 1rem;
+          color: #777;
+          text-align: center;
+          margin: 0;
+          padding: 4px;
      }
      button {
           background-color: #8c00dc;
           font-family: inherit;
           font-size: 1.5rem;
           color: #DDD;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          padding: 4px 8px;
      }
-     .upgrades-pane {
-          width: 40%;
-     }
-     #resume-upgrades {
-          width: 20%;
-     }
-     .upgrades-pane, #resume-upgrades {
-          height: 80%;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: space-around;
+     button:disabled {
+          background-color: #444;
+          color: #666;
+          cursor: not-allowed;
      }
      p {
           margin: 0;
