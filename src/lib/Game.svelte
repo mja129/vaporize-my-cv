@@ -9,8 +9,17 @@
      // --- Upgrade constants ---
      const SKILL_COSTS = [7500, 15000, 35000, 70000, 140000, 275000, 500000];
      const SKILL_BONUS = 200;
+     const AI_SKILL_COST = 50_000_000_000;
      const EXP_COSTS = [50000, 150000, 400000];
      const EXP_BONUSES = [500, 1500, 4000];
+     const MULT_UPGRADES = [
+          { name: 'Rewrite in Rust',           cost: 150_000,       mult: 1.5, effect: 'rust' },
+          { name: 'Laminate Resume',            cost: 1_000_000,     mult: 2,   effect: 'laminate' },
+          { name: 'Print on Gold Foil',         cost: 6_000_000,     mult: 3,   effect: 'gold' },
+          { name: 'Have Dad Email the CEO',     cost: 50_000_000,    mult: 5,   effect: 'dad' },
+          { name: 'Ship an LLM Wrapper',           cost: 300_000_000,   mult: 10, effect: 'pope' },
+          { name: 'Make Vision Board',             cost: 2_000_000_000, mult: 20, effect: 'helicopter' },
+     ];
      const MANUAL_DELAY_TIERS = [
           { cost: 500, delay: 300 },
           { cost: 2000, delay: 100 },
@@ -32,7 +41,7 @@
      const AUTO_PRINT_LABELS = ['3s', '2s', '1.5s', '1s', '0.5s', '0.25s', '0.1s', '0.05s', '0.01s'];
 
      // --- Core game state ---
-     let score = $state(0);
+     let score = $state(99999999);
      let time = $state(300);
      let blockPrint = $state(false);
      let totalDestroyed = $state(0);
@@ -43,27 +52,32 @@
      let manualDelayLevel = $state(0);
      let autoPrintUnlocked = $state(false);
      let autoPrintLevel = $state(0);
+     let multLevel = $state(0);
+     let aiUnlocked = $state(false);
+
+     // --- Derived values ---
+     let maxSkills = $derived(Math.min(10, resume?.skills.length ?? 0));
+     let nextExpIdx = $derived(expUpgraded.findIndex((u: boolean) => !u));
+     let copeMult = $derived(MULT_UPGRADES.slice(0, multLevel).reduce((acc, t) => acc * t.mult, 1) * (aiUnlocked ? 1000 : 1));
+     let activeEffects = $derived([...MULT_UPGRADES.slice(0, multLevel).map(u => u.effect), ...(aiUnlocked ? ['ai'] : [])]);
 
      // --- Resume display sizing ---
-     // RESUME_ASPECT = prop width / prop height, matching flying resumes (102x132)
-     // Resume.svelte has a 5px border on all sides, so rendered size = prop + 10px per axis.
-     // Subtract that border from available space before fitting the ratio.
+     // Border width changes per effect: rust/gold → 7px (14px total), pope box-shadow → 10px overhang per side.
      const RESUME_ASPECT = 102 / 132;
-     const RESUME_BORDER = 10;
+     let resumeBorder = $derived(
+          (activeEffects.includes('rust') || activeEffects.includes('gold') ? 7 : 5) * 2 +
+          (activeEffects.includes('pope') ? 20 : 0)
+     );
      let displayWidth = $state(0);
      let displayHeight = $state(0);
-     let _avW = $derived(Math.max(0, displayWidth - RESUME_BORDER));
-     let _avH = $derived(Math.max(0, displayHeight - RESUME_BORDER));
+     let _avW = $derived(Math.max(0, displayWidth - resumeBorder));
+     let _avH = $derived(Math.max(0, displayHeight - resumeBorder));
      let resumeDisplayW = $derived(
           _avH * RESUME_ASPECT <= _avW ? Math.floor(_avH * RESUME_ASPECT) : _avW
      );
      let resumeDisplayH = $derived(
           _avH * RESUME_ASPECT <= _avW ? _avH : Math.floor(_avW / RESUME_ASPECT)
      );
-
-     // --- Derived values ---
-     let maxSkills = $derived(Math.min(10, resume?.skills.length ?? 0));
-     let nextExpIdx = $derived(expUpgraded.findIndex((u: boolean) => !u));
      let manualPrintDelay = $derived(
           manualDelayLevel === 0 ? 500 : MANUAL_DELAY_TIERS[manualDelayLevel - 1].delay
      );
@@ -73,9 +87,11 @@
      let print_speed = $derived(3 + Math.floor(totalDestroyed / 100));
 
      let resumeWorth = $derived(
-          50 +
-          Math.max(0, unlockedSkillCount - 3) * SKILL_BONUS +
-          expUpgraded.reduce((acc, upgraded, i) => acc + (upgraded ? EXP_BONUSES[i] : 0), 0)
+          Math.round(
+               (50 +
+               Math.max(0, unlockedSkillCount - 3) * SKILL_BONUS +
+               expUpgraded.reduce((acc, upgraded, i) => acc + (upgraded ? EXP_BONUSES[i] : 0), 0))
+          )
      );
 
      let effectiveResume = $derived(resume ? {
@@ -116,6 +132,20 @@
           autoPrintUnlocked = true;
      }
 
+     function buy_mult() {
+          if (multLevel >= MULT_UPGRADES.length) return;
+          const cost = MULT_UPGRADES[multLevel].cost;
+          if (score < cost) return;
+          score -= cost;
+          multLevel++;
+     }
+
+     function buy_ai_skill() {
+          if (aiUnlocked || score < AI_SKILL_COST) return;
+          score -= AI_SKILL_COST;
+          aiUnlocked = true;
+     }
+
      function buy_auto_print_speed() {
           if (!autoPrintUnlocked || autoPrintLevel >= AUTO_PRINT_TIERS.length) return;
           const cost = AUTO_PRINT_TIERS[autoPrintLevel].cost;
@@ -133,9 +163,15 @@
      });
 
      // --- Formatting & animation bookkeeping ---
-     const formatter = new Intl.NumberFormat('en-US');
+     function shortFormat(n: number): string {
+          if (n >= 1e12) return parseFloat((n / 1e12).toPrecision(3)) + 'T';
+          if (n >= 1e9)  return parseFloat((n / 1e9).toPrecision(3)) + 'B';
+          if (n >= 1e6)  return parseFloat((n / 1e6).toPrecision(3)) + 'M';
+          if (n >= 1e3)  return parseFloat((n / 1e3).toPrecision(3)) + 'k';
+          return String(n);
+     }
      let id = 0;
-     let active_resumes: Array<{id: number, worth: number}> = $state([]);
+     let active_resumes: Array<{id: number, worth: number, resume: any, effects: string[]}> = $state([]);
 
      type VaporizeState = { el: HTMLElement; start: number; hr: number; hb: number; dy: number; resolve: (val: [number, number]) => void };
      let active_vaporizations: VaporizeState[] = [];
@@ -229,7 +265,7 @@
           });
      }
 
-     function spawn_manual(e: MouseEvent): any {
+     function spawn_manual(): any {
           if (blockPrint) { return; }
           spawn_resume();
           if (manualPrintDelay > 0) {
@@ -240,8 +276,10 @@
 
      async function spawn_resume() {
           var new_id = id++;
-          var worth = resumeWorth;
-          active_resumes.push({id: new_id, worth});
+          var worth = resumeWorth * copeMult;
+          var resume_snapshot = effectiveResume;
+          var effects_snapshot = [...activeEffects];
+          active_resumes.push({id: new_id, worth, resume: resume_snapshot, effects: effects_snapshot});
           await settled();
           var r = document.getElementById(`resume${new_id}`);
           if (!r) return;
@@ -258,43 +296,57 @@
 
 <div id="game-container">
      <div id="gwindow">
-          <GameBg />
-          {@render table()}
-          {@render printer_tray()}
-          <div id="resumes-container">
-               {#each active_resumes as {id, worth} (id)}
-               <div id="resume{id}" class="resume-cont">
-                    <Resume resume={effectiveResume} height={132} width={102} />
-                    <p style="display: none">+{worth} Cope</p>
+          <div id="game-viewport">
+               <GameBg />
+               {@render table()}
+               {@render printer_tray()}
+               <div id="resumes-container">
+                    {#each active_resumes as res (res.id)}
+                    <div id="resume{res.id}" class="resume-cont">
+                         <Resume resume={res.resume} height={132} width={102} effects={res.effects} />
+                         <p style="display: none">+{shortFormat(res.worth)} Cope</p>
+                    </div>
+                    {/each}
                </div>
-               {/each}
-          </div>
-          {@render printer_top()}
-          <div id="print-btn">
-               <button disabled={blockPrint} onclick={spawn_manual}>Print</button>
+               {@render printer_top()}
+               <div id="print-btn">
+                    <button disabled={blockPrint} onclick={spawn_manual}>Print</button>
+               </div>
+               {@render railgun()}
           </div>
           <div id="hud">
-               <span>Cope: {formatter.format(score)} <small>+{formatter.format(resumeWorth)}/resume</small></span>
+               <span>Cope: {shortFormat(score)} <small>{shortFormat(resumeWorth)} x {copeMult} = +{shortFormat(resumeWorth * copeMult)} / resume</small></span>
                <span>Application Window: {time}s</span>
           </div>
           <div id="upgrades">
                <div id="panes">
                     <div class="upgrades-pane">
-                         <p class="pane-title">Manual Print</p>
-                         <div class="upgrade">
-                              {#if manualDelayLevel >= MANUAL_DELAY_TIERS.length}
-                                   <p>Print Delay</p>
-                                   <p class="upgrade-status">0ms — Maxed!</p>
-                              {:else}
+                         <p class="pane-title">{manualDelayLevel >= MANUAL_DELAY_TIERS.length ? 'Resumé Buffs' : 'Manual Print'}</p>
+                         {#if manualDelayLevel < MANUAL_DELAY_TIERS.length}
+                              <div class="upgrade">
                                    <p>Print Delay</p>
                                    <p class="upgrade-status">{MANUAL_DELAY_LABELS[manualDelayLevel]} → {MANUAL_DELAY_LABELS[manualDelayLevel + 1]}</p>
                                    <button
                                         onclick={buy_manual_delay}
                                         disabled={score < MANUAL_DELAY_TIERS[manualDelayLevel].cost}>
-                                        {formatter.format(MANUAL_DELAY_TIERS[manualDelayLevel].cost)} Cope
+                                        {shortFormat(MANUAL_DELAY_TIERS[manualDelayLevel].cost)} Cope
                                    </button>
-                              {/if}
-                         </div>
+                              </div>
+                         {:else if multLevel < MULT_UPGRADES.length}
+                              {@const upg = MULT_UPGRADES[multLevel]}
+                              <div class="upgrade">
+                                   <p>{upg.name}</p>
+                                   <p class="upgrade-status">×{upg.mult} Cope/resume</p>
+                                   <button onclick={buy_mult} disabled={score < upg.cost}>
+                                        {shortFormat(upg.cost)} Cope
+                                   </button>
+                              </div>
+                         {:else}
+                              <div class="upgrade">
+                                   <p>Resumé Buffs</p>
+                                   <p class="upgrade-status">×{copeMult} total — Maxed!</p>
+                              </div>
+                         {/if}
                     </div>
                     <div class="upgrades-pane">
                          <p class="pane-title">Auto-Print</p>
@@ -303,7 +355,7 @@
                               <p>Unlock Auto-Print</p>
                               <p class="upgrade-status">prints every 3s</p>
                               <button onclick={buy_auto_print} disabled={score < AUTO_PRINT_UNLOCK_COST}>
-                                   {formatter.format(AUTO_PRINT_UNLOCK_COST)} Cope
+                                   {shortFormat(AUTO_PRINT_UNLOCK_COST)} Cope
                               </button>
                          </div>
                          {:else if autoPrintLevel >= AUTO_PRINT_TIERS.length}
@@ -316,7 +368,7 @@
                               <p>Auto-Print Speed</p>
                               <p class="upgrade-status">{AUTO_PRINT_LABELS[autoPrintLevel]} → {AUTO_PRINT_LABELS[autoPrintLevel + 1]}</p>
                               <button onclick={buy_auto_print_speed} disabled={score < AUTO_PRINT_TIERS[autoPrintLevel].cost}>
-                                   {formatter.format(AUTO_PRINT_TIERS[autoPrintLevel].cost)} Cope
+                                   {shortFormat(AUTO_PRINT_TIERS[autoPrintLevel].cost)} Cope
                               </button>
                          </div>
                          {/if}
@@ -331,7 +383,15 @@
                                    <p>+ {resume.skills[unlockedSkillCount]}</p>
                                    <p class="upgrade-status">+{SKILL_BONUS} Cope/resume</p>
                                    <button onclick={buy_skill} disabled={score < SKILL_COSTS[nextIdx]}>
-                                        {formatter.format(SKILL_COSTS[nextIdx])} Cope
+                                        {shortFormat(SKILL_COSTS[nextIdx])} Cope
+                                   </button>
+                              </div>
+                         {:else if !aiUnlocked}
+                              <div class="upgrade small">
+                                   <p>+ AI</p>
+                                   <p class="upgrade-status">×1000 Cope/resume</p>
+                                   <button onclick={buy_ai_skill} disabled={score < AI_SKILL_COST}>
+                                        {shortFormat(AI_SKILL_COST)} Cope
                                    </button>
                               </div>
                          {:else}
@@ -346,7 +406,7 @@
                                    <p>{resume.experience[i].company}</p>
                                    <p class="upgrade-status">+{EXP_BONUSES[i]} Cope/resume</p>
                                    <button onclick={() => buy_exp(i)} disabled={score < EXP_COSTS[i]}>
-                                        {formatter.format(EXP_COSTS[i])} Cope
+                                        {shortFormat(EXP_COSTS[i])} Cope
                                    </button>
                               </div>
                          {:else if resume}
@@ -356,7 +416,7 @@
                </div>
                <div id="resume-display" bind:clientWidth={displayWidth} bind:clientHeight={displayHeight}>
                     {#if resumeDisplayW > 0 && resumeDisplayH > 0}
-                         <Resume resume={effectiveResume} width={resumeDisplayW} height={resumeDisplayH} />
+                         <Resume resume={effectiveResume} width={resumeDisplayW} height={resumeDisplayH} effects={activeEffects} />
                     {/if}
                </div>
           </div>
@@ -407,6 +467,11 @@
           border-color: #111;
           border-style: solid;
      }
+     #game-viewport {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+     }
      #hud {
           width: calc(90% + 450px);
           height: 80px;
@@ -445,6 +510,32 @@
           bottom: 0px;
           right: 0;
           height: 250px;
+     }
+     #railgun {
+          position: absolute;
+          width: 400px;
+          top: -130px;
+          left: -120px;
+          transform-origin: 25% 50%;
+          transform: rotate(20deg);
+          animation-name: idle;
+          animation-duration: 5s;
+          animation-iteration-count: infinite;
+          animation-timing-function: linear;
+     }
+     @keyframes idle {
+          0% {
+               transform: rotate(20deg);
+          }
+          40% {
+               transform: rotate(40deg);
+          }
+          50% {
+               transform: rotate(40deg);
+          }
+          90% {
+               transform: rotate(20deg);
+          }
      }
 
      #upgrades {
@@ -650,5 +741,58 @@
   <polygon class="uuid-6cc2cf78-513d-4bef-827c-a06ba636df0b" points="60.63 477.47 76.86 461.56 76.86 132.02 60.63 127.36 60.63 477.47"/>
   <polygon class="uuid-6cc2cf78-513d-4bef-827c-a06ba636df0b" points="145.17 483.06 145.17 154.12 165.28 160.4 165.28 494.89 145.17 483.06"/>
   <polygon class="uuid-6cc2cf78-513d-4bef-827c-a06ba636df0b" points="165.28 494.89 180.79 479.69 180.79 164.85 165.28 160.4 165.28 494.89"/>
+</svg>
+{/snippet}
+
+{#snippet railgun()}
+<svg id="railgun" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 550.37 396.99">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #ed1c24;
+      }
+
+      .cls-1, .cls-2, .cls-3 {
+        stroke: #231f20;
+        stroke-miterlimit: 10;
+      }
+
+      .cls-2 {
+        fill: #808285;
+      }
+
+      .cls-3 {
+        fill: url(#linear-gradient);
+      }
+    </style>
+    <linearGradient id="linear-gradient" x1="265.33" y1="175.76" x2="486.59" y2="175.76" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff33b"/>
+      <stop offset="0" stop-color="#fee62d"/>
+      <stop offset=".01" stop-color="#fdd51b"/>
+      <stop offset=".02" stop-color="#fdca0f"/>
+      <stop offset=".03" stop-color="#fdc70c"/>
+      <stop offset=".08" stop-color="#f3903f"/>
+      <stop offset=".09" stop-color="#f28d3e"/>
+      <stop offset=".18" stop-color="#f07c3d"/>
+      <stop offset=".29" stop-color="#ee703c"/>
+      <stop offset=".45" stop-color="#ed693c"/>
+      <stop offset=".89" stop-color="#ed683c"/>
+      <stop offset="1" stop-color="#ee3432"/>
+    </linearGradient>
+  </defs>
+  <path class="cls-2" d="m29.9,183.45s14.33,20.51,14.55,47.85l56.22,15.43s6.61,1.1,7.06,7.72c0,0,16.1,3.97,21.83,3.31l2.87-6.84-4.19-3.53,10.36-33.29s1.98-4.41,7.28-4.41,26.02-.22,26.02-.22l1.76-2.2,23.37-.66.44-7.28s.44-11.24-12.35-11.69-125.68,0-125.68,0l-1.76-4.63-27.78.44Z"/>
+  <path class="cls-2" d="m53.05,182.79l2.87-4.19,50.49.22,30.87-17.2s7.5-2.65,12.13-2.43l1.76-3.09,1.54-.22,5.51-4.63,20.06.44,3.09,8.82h10.14l-.44-7.06,10.58-.88,63.72-1.1,3.31,23.59-3.75,3.97-211.89,3.75Z"/>
+  <path class="cls-2" d="m264.94,178.16l-207.26,4.85,1.76,4.63s112.67-.66,125.68,0,12.35,11.69,12.35,11.69l-.44,7.28,76.29-1.32,2.43-13.01-10.8-13.23"/>
+  <polygon class="cls-2" points="265.38 151.48 265.83 155.56 268.03 155.01 268.8 153.13 442.11 153.02 433.84 159.64 435.82 164.27 267.48 166.17 265.38 151.48"/>
+  <polygon class="cls-2" points="435.82 164.27 433.84 172.65 302.65 172.87 292.89 165.81 435.82 164.27"/>
+  <polygon class="cls-2" points="275.47 193.59 462.5 192.27 444.42 188.3 445.96 181.91 268.42 183.39 275.36 192.1 275.47 193.59"/>
+  <polygon class="cls-2" points="274.53 199.55 463.44 197.51 462.5 192.27 275.47 193.59 274.53 199.55"/>
+  <polygon class="cls-2" points="445.58 183.95 453.93 186.26 471.87 181.8 484.44 183.78 486.34 180.06 495.77 179.81 491.47 191.14 485.02 198 463.44 197.51 462.5 192.27 444.42 188.3 445.58 183.95"/>
+  <polygon class="cls-2" points="433.84 172.65 499.21 171.21 496.35 164.38 497.23 161.62 489.07 152.69 441.66 152.91 433.84 159.64 435.82 164.27 433.84 172.65"/>
+  <polygon class="cls-1" points="486.59 171.46 486.34 180.06 495.77 179.81 495.77 171.21 486.59 171.46"/>
+  <polygon class="cls-3" points="267.48 166.17 293.11 165.26 302.65 172.87 486.59 171.46 486.34 180.06 484.44 183.78 471.87 181.8 453.93 186.26 445.58 183.95 445.96 181.91 268.42 183.39 265.33 179.03 268.69 175.07 267.48 166.17"/>
+  <path class="cls-2" d="m135.43,223.63l14.06,3.56,14.97-1.9,7.44-15.82-6.45.03-5.21,11.99-10.42,1.65-2.32-5.79,2.4-7.85-4.02.19s-5.84.17-7.28,4.41-3.17,9.54-3.17,9.54Z"/>
+  <polygon class="cls-2" points="230.11 151.7 229.94 141.28 227.13 141.61 227.46 151.86 230.11 151.7"/>
+  <polygon class="cls-2" points="155.64 209.8 153.54 219.06 151.5 218.4 153.38 209.69 155.64 209.8"/>
 </svg>
 {/snippet}
