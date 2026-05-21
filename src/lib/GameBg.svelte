@@ -57,10 +57,12 @@
 
 <style>
      div {
-          /* border: solid #555 2px; */
           background: #111;
           height: 100%;
           width: 100%;
+          border-bottom-left-radius: 30px;
+     }
+     svg {
           border-bottom-left-radius: 30px;
      }
 </style>

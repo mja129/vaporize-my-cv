@@ -10,6 +10,7 @@
   */
   let { on_login, parse_error } = $props();
   let logging_in = $state(false);
+  const isFirefox = navigator.userAgent.includes('Firefox');
 
   // place gifs randomly around screen
   function generateGifPositions() {
@@ -62,6 +63,12 @@
     </div>
   {/each}
   <div id="form">
+    {#if isFirefox}
+    <div id="firefox-warning">
+      <p class="warning-title">Firefox not supported</p>
+      <p class="warning-body">Firefox hates me, or rather, has a memory-related crash in its GPU process when I render 500 3D-transformed DOM elements. Boo. Please proceed to an objectively worse browser such as Chrome, or don't play my game.<br>No hard feelings &lt;/3</p>
+    </div>
+    {:else}
     <p>...anyways, here's a copy of my resume to hold on to!</p>
     <div id="input-row">
       <label for="resume">PDF, Word Doc, or text file:
@@ -92,12 +99,33 @@
     <p class="error" in:slide>{parse_error}</p>
     {/if}
     <button id="alt" onclick={() => on_login('', true)}>Use mine instead</button>
+    {/if}
   </div>
 </div>
 
 <div id="footer">I don't save your stuff. I genuinely do not care</div>
 
 <style>
+  #firefox-warning {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5rem;
+    text-align: center;
+    padding: 2rem;
+    box-sizing: border-box;
+  }
+  .warning-title {
+    font-size: 4rem;
+  }
+  .warning-body {
+    font-size: 1.8rem;
+    max-width: 600px;
+    color: #AAA;
+  }
   #footer {
     position: absolute;
     right: 10px;
