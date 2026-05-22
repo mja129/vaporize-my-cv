@@ -559,6 +559,7 @@
           bottom: 40px;
           right: 185px;
           transform: rotateX(68deg) rotateZ(39deg);
+          user-select: none;
      }
      .resume-cont > p {
           position: absolute;
@@ -657,6 +658,7 @@
      }
      #print-btn button {
           font-size: 55px;
+          user-select: none;
      }
      #printer-top, #printer-tray {
           position: absolute;
