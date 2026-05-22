@@ -2,6 +2,7 @@
   import { fade, scale } from 'svelte/transition';
   import Login from './lib/Login.svelte';
   import Game from './lib/Game.svelte';
+  import End from './lib/End.svelte';
   import Lines from './lib/Lines.svelte';
   import { onMount } from 'svelte';
   import { debug_processed, parse_resume, type Resume } from './lib/resume_utils'
@@ -9,6 +10,8 @@
   let logged_in: boolean = $state(false);
   let resume: Resume | null = $state(null);
   let parse_error: string | null = $state(null);
+  let game_over: { totalDestroyed: number; score: number } | null = $state(null);
+  let in_game = $state(true);
 
   const DEBUG = false;
 
@@ -32,6 +35,16 @@
     logged_in = true;
   }
 
+  function handle_game_over(totalDestroyed: number, score: number) {
+    in_game = false;
+    setTimeout(() => { game_over = { totalDestroyed, score }; }, 2000);
+  }
+
+  function play_again() {
+    game_over = null;
+    setTimeout(() => { in_game = true; }, 2000);
+  }
+
   onMount(async () => {
     if (DEBUG) { enter('', true); }
   });
@@ -46,13 +59,23 @@
 {:else}
 
 <!-- Wait for the lines animation to play, then render the game -->
+{#if in_game}
+<div out:fade={{ duration: 2000 }}>
 {#await new Promise((r) => setTimeout(r, 1700)) }
 <Lines />
 {:then}
 <div in:scale={{ start: 0, duration: 600 }}>
-  <Game {resume} />
+  <Game {resume} on_game_over={handle_game_over} />
 </div>
 {/await}
+</div>
+{/if}
+
+{#if game_over}
+<div transition:fade={{duration: 2000 }}>
+  <End totalDestroyed={game_over.totalDestroyed} score={game_over.score} on_play_again={play_again} />
+</div>
+{/if}
 
 {/if}
 

@@ -152,7 +152,7 @@
      #container.ai {
           background: linear-gradient(135deg, #6600ff, #ff00cc, #00ccff, #ff6600, #6600ff);
           background-size: 600% 600%;
-          animation: ai-gradient 1.2s linear infinite;
+          animation: ai-gradient 0.8s linear infinite;
           border-color: #ff00cc;
           color: #fff;
           text-shadow: 0 0 6px rgba(255,255,255,0.6);
@@ -164,7 +164,7 @@
           transform: translate(-50%, -50%) rotate(15deg);
           font-size: 0.12em;
           font-weight: 900;
-          color: #fff;
+          color: #FEE;
           border: 0.018em solid #fff;
           padding: 0.03em 0.07em;
           white-space: nowrap;
@@ -185,5 +185,8 @@
      }
      #container.helicopter {
           animation: holographic 1.5s linear infinite;
+     }
+     #container.helicopter.ai {
+          animation: holographic 1.5s linear infinite, ai-gradient 0.8s linear infinite;
      }
 </style>

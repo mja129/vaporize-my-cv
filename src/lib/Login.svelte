@@ -66,7 +66,7 @@
     {#if isFirefox}
     <div id="firefox-warning">
       <p class="warning-title">Firefox not supported</p>
-      <p class="warning-body">Firefox hates me, or rather, has a memory-related crash in its GPU process when I render 500 3D-transformed DOM elements. Boo. Please proceed to an objectively worse browser such as Chrome, or don't play my game.<br>No hard feelings &lt;/3</p>
+      <p class="warning-body">Firefox hates me, or rather, has a memory-related crash in its GPU process when I render 500 3D-transformed DOM elements. No idea why they didn't consider this very normal and definitely not unorthodox workload. Please proceed to an objectively worse browser such as Chrome, or don't play my game.<br>No hard feelings &lt;/3</p>
     </div>
     {:else}
     <p>...anyways, here's a copy of my resume to hold on to!</p>
@@ -103,7 +103,13 @@
   </div>
 </div>
 
-<div id="footer">I don't save your stuff. I genuinely do not care</div>
+<div id="footer">
+  <span>A fun little project by <a href="https://mja129.dev" target="_blank" rel="noopener">Matthew Anderson</a></span>
+  <span class="sep">·</span>
+  <a href="https://github.com/mja129/vaporize-my-cv" target="_blank" rel="noopener">Source</a>
+  <span class="sep">·</span>
+  <span>I don't save your stuff. I genuinely do not care</span>
+</div>
 
 <style>
   #firefox-warning {
@@ -130,8 +136,24 @@
     position: absolute;
     right: 10px;
     bottom: 10px;
-    color: #555;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #999;
     font-size: 1.5rem;
+    background: #1a1a1a;
+    border-radius: 6px;
+    padding: 6px 12px;
+  }
+  #footer a {
+    color: #CAF;
+    text-decoration: none;
+  }
+  #footer a:hover {
+    color: #CCF;
+  }
+  #footer .sep {
+    color: #777;
   }
   #login-container {
     position: relative;

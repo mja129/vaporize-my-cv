@@ -4,13 +4,13 @@
      import type { Resume as ResumeType } from './resume_utils';
      import GameBg from "./GameBg.svelte";
 
-     let { resume }: { resume: ResumeType | null } = $props();
+     let { resume, on_game_over }: { resume: ResumeType | null; on_game_over: (totalDestroyed: number, score: number) => void } = $props();
 
      // --- Upgrade constants ---
-     const SKILL_COSTS = [7500, 15000, 35000, 70000, 140000, 275000, 500000];
+     const SKILL_COSTS = [2500, 7000, 20000, 65000, 200000, 500000, 1_000_000];
      const SKILL_BONUS = 200;
-     const AI_SKILL_COST = 50_000_000_000;
-     const EXP_COSTS = [50000, 150000, 400000];
+     const AI_SKILL_COST = 100_000_000_000;
+     const EXP_COSTS = [150_000, 600_000, 2_000_000];
      const EXP_BONUSES = [500, 1500, 4000];
      const MULT_UPGRADES = [
           { name: 'Rewrite in Rust',           cost: 150_000,       mult: 1.5, effect: 'rust' },
@@ -27,21 +27,21 @@
           { cost: 15000, delay: 0 },
      ];
      const MANUAL_DELAY_LABELS = ['500ms', '300ms', '100ms', '30ms', '0ms'];
-     const AUTO_PRINT_UNLOCK_COST = 8000;
+     const AUTO_PRINT_UNLOCK_COST = 3000;
      const AUTO_PRINT_TIERS = [
-          { cost: 5000, interval: 2000 },
-          { cost: 12000, interval: 1500 },
-          { cost: 25000, interval: 1000 },
-          { cost: 100000, interval: 500 },
-          { cost: 300000, interval: 250 },
-          { cost: 750000, interval: 100 },
-          { cost: 2000000, interval: 50 },
+          { cost: 5000,    interval: 750 },
+          { cost: 15000,   interval: 500 },
+          { cost: 40000,   interval: 250 },
+          { cost: 100000,  interval: 100 },
+          { cost: 300000,  interval: 50 },
+          { cost: 800000,  interval: 25 },
+          { cost: 2000000, interval: 15 },
           { cost: 5000000, interval: 10 },
      ];
-     const AUTO_PRINT_LABELS = ['3s', '2s', '1.5s', '1s', '0.5s', '0.25s', '0.1s', '0.05s', '0.01s'];
+     const AUTO_PRINT_LABELS = ['1s', '0.75s', '0.5s', '0.25s', '0.1s', '0.05s', '0.025s', '0.015s', '0.01s'];
 
      // --- Core game state ---
-     let score = $state(99999999);
+     let score = $state(0);
      let time = $state(300);
      let blockPrint = $state(false);
      let totalDestroyed = $state(0);
@@ -82,9 +82,15 @@
           manualDelayLevel === 0 ? 500 : MANUAL_DELAY_TIERS[manualDelayLevel - 1].delay
      );
      let autoPrintIntervalMs = $derived(
-          autoPrintLevel === 0 ? 3000 : AUTO_PRINT_TIERS[autoPrintLevel - 1].interval
+          autoPrintLevel === 0 ? 1000 : AUTO_PRINT_TIERS[autoPrintLevel - 1].interval
      );
      let print_speed = $derived(3 + Math.floor(totalDestroyed / 100));
+     let allMaxed = $derived(
+          unlockedSkillCount >= maxSkills &&
+          expUpgraded.every((u: boolean) => u) &&
+          multLevel >= MULT_UPGRADES.length &&
+          aiUnlocked
+     );
 
      let resumeWorth = $derived(
           Math.round(
@@ -177,10 +183,113 @@
      let active_vaporizations: VaporizeState[] = [];
      let vaporize_raf: number | null = null;
 
+     let showToast = $state(true);
+
      onMount(() => {
+          setTimeout(() => { showToast = false; }, 8000);
           active_resumes = [];
-          setInterval(() => { time -= 1; }, 1000);
+          const timer = setInterval(() => {
+               time -= 1;
+               if (time <= 0) {
+                    clearInterval(timer);
+                    setTimeout(() => on_game_over(totalDestroyed, score), 800);
+               }
+          }, 1000);
      });
+
+     // Gun rotation tracking (plain vars — updated in RAF, applied directly to DOM)
+     let gunAngle = 30;
+     let gunPlan: { from: number; to: number; startTime: number; duration: number } | null = null;
+     let gunTargetId = -1;
+     let gunJsActive = false;
+
+     function getComputedRotation(el: HTMLElement): number {
+          const matrix = getComputedStyle(el).transform;
+          if (!matrix || matrix === 'none') return gunAngle;
+          const m = matrix.match(/matrix\(([^)]+)\)/);
+          if (!m) return gunAngle;
+          const [a, b] = m[1].split(',').map(Number);
+          return Math.atan2(b, a) * 180 / Math.PI;
+     }
+
+     function angleToTarget(v: VaporizeState): number {
+          const gw = document.getElementById('gwindow')!;
+          const finalX = gw.clientWidth  - 241 + para(0, 0.75, v.hr);
+          const finalY = gw.clientHeight - 111 + para(0, 0.75, v.hb);
+          return Math.atan2(finalY, finalX) * 180 / Math.PI;
+     }
+
+     function updateGun(now: number) {
+          const el = document.getElementById('railgun') as HTMLElement | null;
+          if (!el) return;
+          if (active_vaporizations.length === 0) {
+               gunTargetId = -1;
+               gunPlan = null;
+               return;
+          }
+          const next = active_vaporizations[0];
+          if (next.start !== gunTargetId) {
+               gunTargetId = next.start;
+               const timeRemaining = next.start + 1500 - now;
+               if (timeRemaining > 500) {
+                    gunTargetId = -1;
+                    gunPlan = null;
+                    return;
+               }
+               if (!gunJsActive) {
+                    gunAngle = getComputedRotation(el);
+                    el.style.animation = 'none';
+                    gunJsActive = true;
+               }
+               const rawTarget = angleToTarget(next);
+               const delta = ((rawTarget - gunAngle) % 360 + 540) % 360 - 180;
+               gunPlan = { from: gunAngle, to: gunAngle + delta, startTime: now, duration: timeRemaining };
+          }
+          if (gunPlan) {
+               if (gunPlan.duration < 15) {
+                    gunAngle = gunPlan.to;
+                    el.style.transform = `rotate(${gunAngle}deg)`;
+               } else {
+                    const t = Math.min((now - gunPlan.startTime) / gunPlan.duration, 1);
+                    gunAngle = lerp(gunPlan.from, gunPlan.to, t);
+                    el.style.transform = `rotate(${gunAngle}deg)`;
+               }
+          }
+     }
+
+     const GUN_ORIGIN_X = -15;
+     const GUN_ORIGIN_Y = 0;
+     const GUN_BARREL_LENGTH = 250;
+
+     function fireLaser(v: VaporizeState) {
+          const svg = document.getElementById('laser-canvas');
+          if (!svg) return;
+          const gw = document.getElementById('gwindow')!;
+          const endX = gw.clientWidth  - 241 + para(0, 0.75, v.hr);
+          const endY = gw.clientHeight - 111 + para(0, 0.75, v.hb);
+          const dx = endX - GUN_ORIGIN_X;
+          const dy = endY - GUN_ORIGIN_Y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const tipX = GUN_ORIGIN_X + (dx / dist) * GUN_BARREL_LENGTH;
+          const tipY = GUN_ORIGIN_Y + (dy / dist) * GUN_BARREL_LENGTH;
+          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          line.setAttribute('x1', String(tipX));
+          line.setAttribute('y1', String(tipY));
+          line.setAttribute('x2', String(endX));
+          line.setAttribute('y2', String(endY));
+          line.classList.add('laser-line');
+          svg.appendChild(line);
+
+          const start = performance.now();
+          (function animateLaser(now: number) {
+               const t = Math.min((now - start) / 200, 1);
+               line.setAttribute('x1', String(tipX + (endX - tipX) * t));
+               line.setAttribute('y1', String(tipY + (endY - tipY) * t));
+               line.style.opacity = String(1 - t);
+               if (t < 1) requestAnimationFrame(animateLaser);
+               else line.remove();
+          })(performance.now());
+     }
 
      function vaporize_loop(now: number) {
           for (let i = active_vaporizations.length - 1; i >= 0; i--) {
@@ -188,10 +297,12 @@
                const t = Math.min((now - v.start) / 2000, 0.75);
                v.el.style.transform = `translate(${para(0, t, v.hr)}px, ${para(0, t, v.hb)}px) rotateX(68deg) rotateY(${lerp(0, v.dy, t)}deg) rotateZ(${lerp(39, 2500, t)}deg) scale(${lerp(1, -.2, t)})`;
                if (t >= 0.75) {
+                    fireLaser(v);
                     v.resolve([para(0, 0.75, v.hr), para(0, 0.75, v.hb)]);
                     active_vaporizations.splice(i, 1);
                }
           }
+          updateGun(now);
           if (active_vaporizations.length > 0) {
                vaporize_raf = requestAnimationFrame(vaporize_loop);
           } else {
@@ -294,10 +405,17 @@
      }
 </script>
 
+{#if showToast}
+<div id="toast" role="status">
+     Cope as much as you can in 5 minutes. Upgrade your resume/printer to Cope harder. Good luck!
+</div>
+{/if}
+
 <div id="game-container">
      <div id="gwindow">
           <div id="game-viewport">
                <GameBg />
+               <svg id="laser-canvas"></svg>
                {@render table()}
                {@render printer_tray()}
                <div id="resumes-container">
@@ -315,13 +433,17 @@
                {@render railgun()}
           </div>
           <div id="hud">
-               <span>Cope: {shortFormat(score)} <small>{shortFormat(resumeWorth)} x {copeMult} = +{shortFormat(resumeWorth * copeMult)} / resume</small></span>
+               <span>Cope: {shortFormat(score)}</span>
                <span>Application Window: {time}s</span>
           </div>
           <div id="upgrades">
+               <p id="cope-per-resume" class:rainbow={allMaxed}>
+                    +<span>{shortFormat(resumeWorth * copeMult)}</span> / resume
+                    <small>({shortFormat(resumeWorth)} × {shortFormat(copeMult)})</small>
+               </p>
                <div id="panes">
                     <div class="upgrades-pane">
-                         <p class="pane-title">{manualDelayLevel >= MANUAL_DELAY_TIERS.length ? 'Resumé Buffs' : 'Manual Print'}</p>
+                         <p class="pane-title">{manualDelayLevel >= MANUAL_DELAY_TIERS.length ? 'Resume Buffs' : 'Manual Print'}</p>
                          {#if manualDelayLevel < MANUAL_DELAY_TIERS.length}
                               <div class="upgrade">
                                    <p>Print Delay</p>
@@ -343,7 +465,7 @@
                               </div>
                          {:else}
                               <div class="upgrade">
-                                   <p>Resumé Buffs</p>
+                                   <p>Resume Buffs</p>
                                    <p class="upgrade-status">×{copeMult} total — Maxed!</p>
                               </div>
                          {/if}
@@ -353,7 +475,7 @@
                          {#if !autoPrintUnlocked}
                          <div class="upgrade">
                               <p>Unlock Auto-Print</p>
-                              <p class="upgrade-status">prints every 3s</p>
+                              <p class="upgrade-status">prints every 1s</p>
                               <button onclick={buy_auto_print} disabled={score < AUTO_PRINT_UNLOCK_COST}>
                                    {shortFormat(AUTO_PRINT_UNLOCK_COST)} Cope
                               </button>
@@ -388,7 +510,7 @@
                               </div>
                          {:else if !aiUnlocked}
                               <div class="upgrade small">
-                                   <p>+ AI</p>
+                                   <p style="font-size: 2rem; color: cyan">+ AI</p>
                                    <p class="upgrade-status">×1000 Cope/resume</p>
                                    <button onclick={buy_ai_skill} disabled={score < AI_SKILL_COST}>
                                         {shortFormat(AI_SKILL_COST)} Cope
@@ -472,6 +594,19 @@
           inset: 0;
           overflow: hidden;
      }
+     #laser-canvas {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          pointer-events: none;
+          overflow: visible;
+     }
+     :global(.laser-line) {
+          stroke: #ff2200;
+          stroke-width: 2px;
+          stroke-linecap: round;
+     }
      #hud {
           width: calc(90% + 450px);
           height: 80px;
@@ -485,9 +620,33 @@
      #hud > span {
           font-size: 4.5rem;
      }
-     #hud small {
-          font-size: 0.45em;
+     #cope-per-resume {
+          margin: 0;
+          padding: 4px 8px;
+          font-size: 2rem;
+          font-weight: bold;
+          color: #eee;
+          border-bottom: 1px solid #444;
+          padding-bottom: 8px;
+          margin-bottom: 4px;
+          text-align: center;
+     }
+     #cope-per-resume small {
+          font-size: 0.75em;
           color: #aaa;
+          font-weight: normal;
+     }
+     @keyframes rainbow-text {
+          0%   { color: #ff4444; }
+          16%  { color: #ffaa00; }
+          33%  { color: #ffff00; }
+          50%  { color: #44ff44; }
+          67%  { color: #44aaff; }
+          83%  { color: #cc44ff; }
+          100% { color: #ff4444; }
+     }
+     #cope-per-resume.rainbow span {
+          animation: rainbow-text 1s linear infinite;
      }
 
      #print-btn {
@@ -637,6 +796,29 @@
           margin: 0;
           padding: 0;
      }
+     #toast {
+          position: fixed;
+          max-width: 80%;
+          top: 24px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: #333;
+          color: #eee;
+          font-size: 2rem;
+          padding: 14px 24px;
+          border-radius: 8px;
+          box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+          z-index: 1000;
+          pointer-events: none;
+          animation: toast-in-out 8s ease forwards;
+          white-space: nowrap;
+     }
+     @keyframes toast-in-out {
+          0%   { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+          10%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+          75%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+          100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+     }
 </style>
 
 {#snippet printer_top()}
@@ -761,6 +943,11 @@
         fill: #808285;
       }
 
+      .cls-4 {
+        fill: #231f20;
+        stroke-width: 0px;
+      }
+
       .cls-3 {
         fill: url(#linear-gradient);
       }
@@ -794,5 +981,18 @@
   <path class="cls-2" d="m135.43,223.63l14.06,3.56,14.97-1.9,7.44-15.82-6.45.03-5.21,11.99-10.42,1.65-2.32-5.79,2.4-7.85-4.02.19s-5.84.17-7.28,4.41-3.17,9.54-3.17,9.54Z"/>
   <polygon class="cls-2" points="230.11 151.7 229.94 141.28 227.13 141.61 227.46 151.86 230.11 151.7"/>
   <polygon class="cls-2" points="155.64 209.8 153.54 219.06 151.5 218.4 153.38 209.69 155.64 209.8"/>
+  <g>
+    <path class="cls-4" d="m155.37,173.72l-1.15.05-.27-5.73,1.15-.05-.05-1.15,5.73-.27.05,1.15,1.15-.05.05,1.15-2.29.11-.05-1.15-3.44.16.27,5.73,3.44-.16-.05-1.15,2.29-.11.05,1.15-1.15.05.05,1.15-5.73.27-.05-1.15Z"/>
+    <path class="cls-4" d="m164.53,173.29l-1.15.05-.27-5.73,1.15-.05-.05-1.15,5.73-.27.05,1.15,1.15-.05.27,5.73-1.15.05.05,1.15-5.73.27-.05-1.15Zm1.15-.05l3.44-.16-.27-5.73-3.44.16.27,5.73Z"/>
+    <path class="cls-4" d="m172.61,174.06l-.38-8.02,2.29-.11.05,1.15,1.15-.05.05,1.15,1.15-.05-.05-1.15,1.15-.05-.05-1.15,2.29-.11.38,8.02-2.29.11-.22-4.58-1.15.05.05,1.15-1.15.05-.05-1.15-1.15.05.22,4.58-2.29.11Z"/>
+    <path class="cls-4" d="m188.33,166.42l1.15-.05.11,2.29-1.15.05.05,1.15-4.58.22.16,3.44-2.29.11-.38-8.02,6.88-.33.05,1.15Zm-1.04,2.35l-.11-2.29-3.44.16.11,2.29,3.44-.16Z"/>
+    <path class="cls-4" d="m190.94,173.19l-.27-5.73,1.15-.05-.05-1.15,1.15-.05-.05-1.15,3.44-.16.05,1.15,1.15-.05.05,1.15,1.15-.05.27,5.73-2.29.11-.11-2.29-3.44.16.11,2.29-2.29.11Zm5.57-3.71l-.11-2.29-1.15.05-.05-1.15-1.15.05.05,1.15-1.15.05.11,2.29,3.44-.16Z"/>
+    <path class="cls-4" d="m200.11,172.75l-.38-8.02,2.29-.11.05,1.15,1.15-.05.05,1.15,1.15-.05.05,1.15,1.15-.05-.16-3.44,2.29-.11.38,8.02-2.29.11-.11-2.29-1.15.05-.05-1.15-1.15.05-.05-1.15-1.15.05.22,4.58-2.29.11Z"/>
+    <path class="cls-4" d="m211.35,167.63l-1.15.05-.16-3.44,2.29-.11.16,3.44,2.29-.11-.16-3.44,2.29-.11.16,3.44-1.15.05.05,1.15-1.15.05.16,3.44-2.29.11-.16-3.44-1.15.05-.05-1.15Z"/>
+    <path class="cls-4" d="m228.76,171.4l-.05-1.15,2.29-.11-.27-5.73-2.29.11-.05-1.15,6.88-.33.05,1.15-2.29.11.27,5.73,2.29-.11.05,1.15-6.88.33Z"/>
+    <path class="cls-4" d="m236.78,171.02l-.38-8.02,2.29-.11.05,1.15,1.15-.05.05,1.15,1.15-.05.05,1.15,1.15-.05-.16-3.44,2.29-.11.38,8.02-2.29.11-.11-2.29-1.15.05-.05-1.15-1.15.05-.05-1.15-1.15.05.22,4.58-2.29.11Z"/>
+    <path class="cls-4" d="m247.04,169.38l-1.15.05-.27-5.73,1.15-.05-.05-1.15,5.73-.27.05,1.15,1.15-.05.05,1.15-2.29.11-.05-1.15-3.44.16.27,5.73,3.44-.16-.05-1.15,2.29-.11.05,1.15-1.15.05.05,1.15-5.73.27-.05-1.15Z"/>
+    <path class="cls-4" d="m257.41,170.04l-.11-2.29,2.29-.11.11,2.29-2.29.11Z"/>
+  </g>
 </svg>
 {/snippet}
