@@ -9,9 +9,9 @@
      class:rust={effects.includes('rust')}
      class:laminate={effects.includes('laminate')}
      class:gold={effects.includes('gold')}
-     class:dad={effects.includes('dad')}
-     class:pope={effects.includes('pope')}
-     class:helicopter={effects.includes('helicopter')}
+     class:know={effects.includes('know')}
+     class:llm={effects.includes('llm')}
+     class:giveup={effects.includes('giveup')}
      class:ai={effects.includes('ai')}>
      <p class="header" style="font-size: 0.1em; margin-top: 0.5em">{resume.name ? resume.name : 'Jobby McJobFace'}</p>
      <p class="body" style="font-size: 0.09em; margin-left: 0.25em">Skills:</p>
@@ -24,7 +24,7 @@
      {#if effects.includes('rust')}
      <div class="memory-safe">MEMORY SAFE ✓</div>
      {/if}
-     {#if effects.includes('dad')}
+     {#if effects.includes('know')}
      <div class="stamp">APPROVED</div>
      {/if}
      {#if effects.includes('ai')}
@@ -134,8 +134,8 @@
           font-family: serif;
      }
 
-     /* Pope: layered solid rings — no blur, no repaint cost */
-     #container.pope {
+     /* LLM: layered solid rings — no blur, no repaint cost */
+     #container.llm {
           outline: 3px double #DAA520;
           outline-offset: -8px;
           box-shadow: 0 0 0 4px #DAA520, 0 0 0 7px #FFFDE7, 0 0 0 10px #DAA520;
@@ -174,7 +174,7 @@
           font-family: sans-serif;
      }
 
-     /* Helicopter: animated prismatic border */
+     /* Give Up: animated prismatic border */
      @keyframes holographic {
           0%   { border-color: #ff6b6b; box-shadow: 0 0 8px #ff6b6b44; }
           20%  { border-color: #ffa94d; box-shadow: 0 0 8px #ffa94d44; }
@@ -183,10 +183,10 @@
           80%  { border-color: #74c0fc; box-shadow: 0 0 8px #74c0fc44; }
           100% { border-color: #da77f2; box-shadow: 0 0 8px #da77f244; }
      }
-     #container.helicopter {
+     #container.giveup {
           animation: holographic 1.5s linear infinite;
      }
-     #container.helicopter.ai {
+     #container.giveup.ai {
           animation: holographic 1.5s linear infinite, ai-gradient 0.8s linear infinite;
      }
 </style>

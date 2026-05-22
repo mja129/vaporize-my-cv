@@ -71,15 +71,17 @@
     {:else}
     <p>...anyways, here's a copy of my resume to hold on to!</p>
     <div id="input-row">
-      <label for="resume">PDF, Word Doc, or text file:
-        <input
-          name="resume"
-          type="file"
-          accept="application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx,text/plain,.txt"
-          bind:files={resume}
-          style="margin-left: 10px;"
-        />
+      <label id="file-label" for="resume">
+        {resume ? resume[0].name : 'Choose a file…'}
       </label>
+      <input
+        id="resume"
+        name="resume"
+        type="file"
+        accept="application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx,text/plain,.txt"
+        bind:files={resume}
+      />
+      <p class="file-hint">PDF, Word doc, or text file</p>
       {#if resume && !resume_text && !error}
       <div class="spinner"></div>
       {/if}
@@ -241,21 +243,43 @@
     font-family: inherit;
     color: inherit;
     padding: 8px;
-    /* -webkit-text-stroke: 2px #BBB;
-    text-stroke: 2px #BBB; */
     background-color: #222;
+    cursor: pointer;
   }
   p {
     font-size: 30pt;
     margin: 0;
   }
-  label {
-    font-size: 20pt;
+  input[type="file"] {
+    display: none;
+  }
+  #file-label {
+    font-size: 16pt;
+    font-family: inherit;
+    color: inherit;
+    background: #222;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 24px;
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 400px;
+  }
+  #file-label:hover {
+    background: #2a2a2a;
+  }
+  .file-hint {
+    font-size: 13pt !important;
+    color: #888;
+    margin: 0;
   }
   #input-row {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 24px;
   }
   .spinner {
     width: 36px;

@@ -13,12 +13,12 @@
      const EXP_COSTS = [150_000, 600_000, 2_000_000];
      const EXP_BONUSES = [500, 1500, 4000];
      const MULT_UPGRADES = [
-          { name: 'Rewrite in Rust',           cost: 150_000,       mult: 1.5, effect: 'rust' },
-          { name: 'Laminate Resume',            cost: 1_000_000,     mult: 2,   effect: 'laminate' },
-          { name: 'Print on Gold Foil',         cost: 6_000_000,     mult: 3,   effect: 'gold' },
-          { name: 'Have Dad Email the CEO',     cost: 50_000_000,    mult: 5,   effect: 'dad' },
-          { name: 'Ship an LLM Wrapper',           cost: 300_000_000,   mult: 10, effect: 'pope' },
-          { name: 'Make Vision Board',             cost: 2_000_000_000, mult: 20, effect: 'helicopter' },
+          { name: 'Rewrite in Rust', cost: 150_000, mult: 1.5, effect: 'rust' },
+          { name: 'Laminate', cost: 1_000_000, mult: 2, effect: 'laminate' },
+          { name: 'Print on Gold Foil', cost: 6_000_000, mult: 3, effect: 'gold' },
+          { name: 'Know A Guy', cost: 50_000_000, mult: 5, effect: 'know' },
+          { name: 'Consult An LLM', cost: 300_000_000, mult: 10, effect: 'llm' },
+          { name: 'Give Up', cost: 2_000_000_000, mult: 20, effect: 'giveup' },
      ];
      const MANUAL_DELAY_TIERS = [
           { cost: 500, delay: 300 },
@@ -62,11 +62,11 @@
      let activeEffects = $derived([...MULT_UPGRADES.slice(0, multLevel).map(u => u.effect), ...(aiUnlocked ? ['ai'] : [])]);
 
      // --- Resume display sizing ---
-     // Border width changes per effect: rust/gold → 7px (14px total), pope box-shadow → 10px overhang per side.
+     // Border width changes per effect: rust/gold → 7px (14px total), llm box-shadow → 10px overhang per side.
      const RESUME_ASPECT = 102 / 132;
      let resumeBorder = $derived(
           (activeEffects.includes('rust') || activeEffects.includes('gold') ? 7 : 5) * 2 +
-          (activeEffects.includes('pope') ? 20 : 0)
+          (activeEffects.includes('llm') ? 20 : 0)
      );
      let displayWidth = $state(0);
      let displayHeight = $state(0);
@@ -466,7 +466,7 @@
                          {:else}
                               <div class="upgrade">
                                    <p>Resume Buffs</p>
-                                   <p class="upgrade-status">×{copeMult} total — Maxed!</p>
+                                   <p class="upgrade-status">Max</p>
                               </div>
                          {/if}
                     </div>
@@ -483,7 +483,7 @@
                          {:else if autoPrintLevel >= AUTO_PRINT_TIERS.length}
                          <div class="upgrade">
                               <p>Auto-Print Speed</p>
-                              <p class="upgrade-status">0.01s — Maxed!</p>
+                              <p class="upgrade-status">0.01s — Max</p>
                          </div>
                          {:else}
                          <div class="upgrade">
