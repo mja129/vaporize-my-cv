@@ -184,10 +184,22 @@
      let vaporize_raf: number | null = null;
 
      let showToast = $state(true);
+     let zoom = $state(1);
+
+     function updateZoom() {
+          const w = window.innerWidth;
+          const h = window.innerHeight;
+          if      (w <= 420 || h <= 600) zoom = 0.4;
+          else if (w <= 700 || h <= 700) zoom = 0.6;
+          else if (w <= 950 || h <= 900) zoom = 0.8;
+          else                           zoom = 1;
+     }
 
      onMount(() => {
           setTimeout(() => { showToast = false; }, 8000);
           active_resumes = [];
+          updateZoom();
+          window.addEventListener('resize', updateZoom);
           const timer = setInterval(() => {
                time -= 1;
                if (time <= 0) {
@@ -195,6 +207,7 @@
                     setTimeout(() => on_game_over(totalDestroyed, score), 800);
                }
           }, 1000);
+          return () => { clearInterval(timer); window.removeEventListener('resize', updateZoom); };
      });
 
      // Gun rotation tracking (plain vars — updated in RAF, applied directly to DOM)
@@ -214,8 +227,8 @@
 
      function angleToTarget(v: VaporizeState): number {
           const gw = document.getElementById('gwindow')!;
-          const finalX = gw.clientWidth  - 241 + para(0, 0.75, v.hr);
-          const finalY = gw.clientHeight - 111 + para(0, 0.75, v.hb);
+          const finalX = gw.clientWidth / zoom - 241 + para(0, 0.75, v.hr);
+          const finalY = gw.clientHeight / zoom - 111 + para(0, 0.75, v.hb);
           return Math.atan2(finalY, finalX) * 180 / Math.PI;
      }
 
@@ -265,8 +278,8 @@
           const svg = document.getElementById('laser-canvas');
           if (!svg) return;
           const gw = document.getElementById('gwindow')!;
-          const endX = gw.clientWidth  - 241 + para(0, 0.75, v.hr);
-          const endY = gw.clientHeight - 111 + para(0, 0.75, v.hb);
+          const endX = gw.clientWidth / zoom - 241 + para(0, 0.75, v.hr);
+          const endY = gw.clientHeight / zoom - 111 + para(0, 0.75, v.hb);
           const dx = endX - GUN_ORIGIN_X;
           const dy = endY - GUN_ORIGIN_Y;
           const dist = Math.sqrt(dx * dx + dy * dy);
@@ -348,8 +361,8 @@
 
      async function vaporize(r: HTMLElement): Promise<[number, number]> {
           const gwindow = document.getElementById('gwindow');
-          const hr = Math.random() * -gwindow!.clientWidth * 2 - 750;
-          const hb = Math.random() * -gwindow!.clientHeight * 2 - 750;
+          const hr = Math.random() * -gwindow!.clientWidth * 3 - 500;
+          const hb = Math.random() * -gwindow!.clientHeight * 3;
           const dy = Math.random() * 20 + 35;
           return new Promise((resolve) => {
                active_vaporizations.push({ el: r, start: performance.now(), hr, hb, dy, resolve });
@@ -416,6 +429,7 @@
           <div id="game-viewport">
                <GameBg />
                <svg id="laser-canvas"></svg>
+               {@render railgun()}
                {@render table()}
                {@render printer_tray()}
                <div id="resumes-container">
@@ -430,110 +444,111 @@
                <div id="print-btn">
                     <button disabled={blockPrint} onclick={spawn_manual}>Print</button>
                </div>
-               {@render railgun()}
           </div>
           <div id="hud">
                <span>Cope: {shortFormat(score)}</span>
                <span>Application Window: {time}s</span>
           </div>
           <div id="upgrades">
-               <p id="cope-per-resume" class:rainbow={allMaxed}>
-                    +<span>{shortFormat(resumeWorth * copeMult)}</span> / resume
-                    <small>({shortFormat(resumeWorth)} × {shortFormat(copeMult)})</small>
-               </p>
-               <div id="panes">
-                    <div class="upgrades-pane">
-                         <p class="pane-title">{manualDelayLevel >= MANUAL_DELAY_TIERS.length ? 'Resume Buffs' : 'Manual Print'}</p>
-                         {#if manualDelayLevel < MANUAL_DELAY_TIERS.length}
-                              <div class="upgrade">
-                                   <p>Print Delay</p>
-                                   <p class="upgrade-status">{MANUAL_DELAY_LABELS[manualDelayLevel]} → {MANUAL_DELAY_LABELS[manualDelayLevel + 1]}</p>
-                                   <button
-                                        onclick={buy_manual_delay}
-                                        disabled={score < MANUAL_DELAY_TIERS[manualDelayLevel].cost}>
-                                        {shortFormat(MANUAL_DELAY_TIERS[manualDelayLevel].cost)} Cope
-                                   </button>
-                              </div>
-                         {:else if multLevel < MULT_UPGRADES.length}
-                              {@const upg = MULT_UPGRADES[multLevel]}
-                              <div class="upgrade">
-                                   <p>{upg.name}</p>
-                                   <p class="upgrade-status">×{upg.mult} Cope/resume</p>
-                                   <button onclick={buy_mult} disabled={score < upg.cost}>
-                                        {shortFormat(upg.cost)} Cope
-                                   </button>
-                              </div>
-                         {:else}
-                              <div class="upgrade">
-                                   <p>Resume Buffs</p>
-                                   <p class="upgrade-status">Max</p>
-                              </div>
-                         {/if}
-                    </div>
-                    <div class="upgrades-pane">
-                         <p class="pane-title">Auto-Print</p>
-                         {#if !autoPrintUnlocked}
-                         <div class="upgrade">
-                              <p>Unlock Auto-Print</p>
-                              <p class="upgrade-status">prints every 1s</p>
-                              <button onclick={buy_auto_print} disabled={score < AUTO_PRINT_UNLOCK_COST}>
-                                   {shortFormat(AUTO_PRINT_UNLOCK_COST)} Cope
-                              </button>
+               <div id="upgrades-left">
+                    <p id="cope-per-resume" class:rainbow={allMaxed}>
+                         +<span>{shortFormat(resumeWorth * copeMult)}</span> / resume
+                         <small>({shortFormat(resumeWorth)} × {shortFormat(copeMult)})</small>
+                    </p>
+                    <div id="panes">
+                         <div class="upgrades-pane">
+                              <p class="pane-title">{manualDelayLevel >= MANUAL_DELAY_TIERS.length ? 'Resume Buffs' : 'Manual Print'}</p>
+                              {#if manualDelayLevel < MANUAL_DELAY_TIERS.length}
+                                   <div class="upgrade">
+                                        <p>Print Delay</p>
+                                        <p class="upgrade-status">{MANUAL_DELAY_LABELS[manualDelayLevel]} → {MANUAL_DELAY_LABELS[manualDelayLevel + 1]}</p>
+                                        <button
+                                             onclick={buy_manual_delay}
+                                             disabled={score < MANUAL_DELAY_TIERS[manualDelayLevel].cost}>
+                                             {shortFormat(MANUAL_DELAY_TIERS[manualDelayLevel].cost)} Cope
+                                        </button>
+                                   </div>
+                              {:else if multLevel < MULT_UPGRADES.length}
+                                   {@const upg = MULT_UPGRADES[multLevel]}
+                                   <div class="upgrade">
+                                        <p>{upg.name}</p>
+                                        <p class="upgrade-status">×{upg.mult} Cope/resume</p>
+                                        <button onclick={buy_mult} disabled={score < upg.cost}>
+                                             {shortFormat(upg.cost)} Cope
+                                        </button>
+                                   </div>
+                              {:else}
+                                   <div class="upgrade">
+                                        <p>Resume Buffs</p>
+                                        <p class="upgrade-status">Max</p>
+                                   </div>
+                              {/if}
                          </div>
-                         {:else if autoPrintLevel >= AUTO_PRINT_TIERS.length}
-                         <div class="upgrade">
-                              <p>Auto-Print Speed</p>
-                              <p class="upgrade-status">0.01s — Max</p>
+                         <div class="upgrades-pane">
+                              <p class="pane-title">Auto-Print</p>
+                              {#if !autoPrintUnlocked}
+                              <div class="upgrade">
+                                   <p>Unlock Auto-Print</p>
+                                   <p class="upgrade-status">prints every 1s</p>
+                                   <button onclick={buy_auto_print} disabled={score < AUTO_PRINT_UNLOCK_COST}>
+                                        {shortFormat(AUTO_PRINT_UNLOCK_COST)} Cope
+                                   </button>
+                              </div>
+                              {:else if autoPrintLevel >= AUTO_PRINT_TIERS.length}
+                              <div class="upgrade">
+                                   <p>Auto-Print Speed</p>
+                                   <p class="upgrade-status">0.01s — Max</p>
+                              </div>
+                              {:else}
+                              <div class="upgrade">
+                                   <p>Auto-Print Speed</p>
+                                   <p class="upgrade-status">{AUTO_PRINT_LABELS[autoPrintLevel]} → {AUTO_PRINT_LABELS[autoPrintLevel + 1]}</p>
+                                   <button onclick={buy_auto_print_speed} disabled={score < AUTO_PRINT_TIERS[autoPrintLevel].cost}>
+                                        {shortFormat(AUTO_PRINT_TIERS[autoPrintLevel].cost)} Cope
+                                   </button>
+                              </div>
+                              {/if}
                          </div>
-                         {:else}
-                         <div class="upgrade">
-                              <p>Auto-Print Speed</p>
-                              <p class="upgrade-status">{AUTO_PRINT_LABELS[autoPrintLevel]} → {AUTO_PRINT_LABELS[autoPrintLevel + 1]}</p>
-                              <button onclick={buy_auto_print_speed} disabled={score < AUTO_PRINT_TIERS[autoPrintLevel].cost}>
-                                   {shortFormat(AUTO_PRINT_TIERS[autoPrintLevel].cost)} Cope
-                              </button>
+                    </div>
+                    <div id="skill-exp-panes">
+                         <div class="upgrades-pane">
+                              <p class="pane-title">Skills ({unlockedSkillCount}/{maxSkills})</p>
+                              {#if resume && unlockedSkillCount < maxSkills}
+                                   {@const nextIdx = unlockedSkillCount - 3}
+                                   <div class="upgrade small">
+                                        <p>+ {resume.skills[unlockedSkillCount]}</p>
+                                        <p class="upgrade-status">+{SKILL_BONUS} Cope/resume</p>
+                                        <button onclick={buy_skill} disabled={score < SKILL_COSTS[nextIdx]}>
+                                             {shortFormat(SKILL_COSTS[nextIdx])} Cope
+                                        </button>
+                                   </div>
+                              {:else if !aiUnlocked}
+                                   <div class="upgrade small">
+                                        <p style="font-size: 2rem; color: cyan">+ AI</p>
+                                        <p class="upgrade-status">×1000 Cope/resume</p>
+                                        <button onclick={buy_ai_skill} disabled={score < AI_SKILL_COST}>
+                                             {shortFormat(AI_SKILL_COST)} Cope
+                                        </button>
+                                   </div>
+                              {:else}
+                                   <p class="maxed">All skills unlocked!</p>
+                              {/if}
                          </div>
-                         {/if}
-                    </div>
-               </div>
-               <div id="skill-exp-panes">
-                    <div class="upgrades-pane">
-                         <p class="pane-title">Skills ({unlockedSkillCount}/{maxSkills})</p>
-                         {#if resume && unlockedSkillCount < maxSkills}
-                              {@const nextIdx = unlockedSkillCount - 3}
-                              <div class="upgrade small">
-                                   <p>+ {resume.skills[unlockedSkillCount]}</p>
-                                   <p class="upgrade-status">+{SKILL_BONUS} Cope/resume</p>
-                                   <button onclick={buy_skill} disabled={score < SKILL_COSTS[nextIdx]}>
-                                        {shortFormat(SKILL_COSTS[nextIdx])} Cope
-                                   </button>
-                              </div>
-                         {:else if !aiUnlocked}
-                              <div class="upgrade small">
-                                   <p style="font-size: 2rem; color: cyan">+ AI</p>
-                                   <p class="upgrade-status">×1000 Cope/resume</p>
-                                   <button onclick={buy_ai_skill} disabled={score < AI_SKILL_COST}>
-                                        {shortFormat(AI_SKILL_COST)} Cope
-                                   </button>
-                              </div>
-                         {:else}
-                              <p class="maxed">All skills unlocked!</p>
-                         {/if}
-                    </div>
-                    <div class="upgrades-pane">
-                         <p class="pane-title">Experience</p>
-                         {#if resume && nextExpIdx >= 0}
-                              {@const i = nextExpIdx}
-                              <div class="upgrade small">
-                                   <p>{resume.experience[i].company}</p>
-                                   <p class="upgrade-status">+{EXP_BONUSES[i]} Cope/resume</p>
-                                   <button onclick={() => buy_exp(i)} disabled={score < EXP_COSTS[i]}>
-                                        {shortFormat(EXP_COSTS[i])} Cope
-                                   </button>
-                              </div>
-                         {:else if resume}
-                              <p class="maxed">All experience upgraded!</p>
-                         {/if}
+                         <div class="upgrades-pane">
+                              <p class="pane-title">Experience</p>
+                              {#if resume && nextExpIdx >= 0}
+                                   {@const i = nextExpIdx}
+                                   <div class="upgrade small">
+                                        <p>{resume.experience[i].company}</p>
+                                        <p class="upgrade-status">+{EXP_BONUSES[i]} Cope/resume</p>
+                                        <button onclick={() => buy_exp(i)} disabled={score < EXP_COSTS[i]}>
+                                             {shortFormat(EXP_COSTS[i])} Cope
+                                        </button>
+                                   </div>
+                              {:else if resume}
+                                   <p class="maxed">All experience upgraded!</p>
+                              {/if}
+                         </div>
                     </div>
                </div>
                <div id="resume-display" bind:clientWidth={displayWidth} bind:clientHeight={displayHeight}>
@@ -801,25 +816,87 @@
      #toast {
           position: fixed;
           max-width: 80%;
+          width: max-content;
           top: 24px;
           left: 50%;
           transform: translateX(-50%);
           background: #333;
           color: #eee;
-          font-size: 2rem;
+          font-size: 1.5rem;
           padding: 14px 24px;
           border-radius: 8px;
           box-shadow: 0 4px 16px rgba(0,0,0,0.5);
           z-index: 1000;
           pointer-events: none;
+          text-align: center;
           animation: toast-in-out 8s ease forwards;
-          white-space: nowrap;
      }
      @keyframes toast-in-out {
           0%   { opacity: 0; transform: translateX(-50%) translateY(-10px); }
           10%  { opacity: 1; transform: translateX(-50%) translateY(0); }
           75%  { opacity: 1; transform: translateX(-50%) translateY(0); }
           100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+     }
+     #upgrades-left {
+          display: contents;
+     }
+     @media (max-width: 950px), (max-height: 900px) { 
+          #gwindow > * > * {
+               zoom: .8;
+          }
+     }
+     @media (max-width: 700px), (max-height: 700px) {
+          #gwindow > * > * {
+               zoom: .6;
+          }
+     }
+     @media (max-width: 420px), (max-height: 600px) {
+          #gwindow > * > * {
+               zoom: .4;
+          }
+     }
+     @media (max-width: 1350px), (max-height: 900px) {
+          #gwindow {
+               top: 2%;
+               left: 2%;
+               width: 96%;
+               height: calc(52vh - 100px);
+               border-right-width: 0;
+               border-bottom-left-radius: 0px;
+          }
+          #hud {
+               width: calc(100% - 30px);
+               left: 15px;
+          }
+          #hud > span {
+               font-size: 3rem;
+          }
+          #upgrades {
+               top: 100%;
+               right: auto;
+               left: 0;
+               width: 100%;
+               height: calc(44vh);
+               flex-direction: row;
+               overflow: hidden;
+               border-top-left-radius: 0;
+               border-top-right-radius: 0;
+          }
+          #upgrades-left {
+               display: flex;
+               flex-direction: column;
+               gap: 8px;
+               flex: 0 0 auto;
+               width: clamp(200px, 40%, 600px);
+               min-width: 0;
+               overflow-y: auto;
+          }
+          #resume-display {
+               flex: 1;
+               height: 100%;
+               min-height: unset;
+               width: auto;
+          }
      }
 </style>
 

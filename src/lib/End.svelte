@@ -10,7 +10,7 @@
   }
 
   // svelte-ignore state_referenced_locally
-  const shareText = `I just vaporized ${totalDestroyed.toLocaleString()} ${totalDestroyed == 1 ? "copy" : "copies"} of my resume and earned ${score.toLocaleString()} Cope, and all I got was this lousy easily sharable message.\nPlay at https://vaporizemy.cv`;
+  const shareText = `I just vaporized ${totalDestroyed.toLocaleString()} ${totalDestroyed == 1 ? "copy" : "copies"} of my resume, and all I got was ${score.toLocaleString()} Cope and this lousy easily sharable message.\nPlay at https://vaporizemy.cv`;
 
   let copied = $state(false);
   function copy() {

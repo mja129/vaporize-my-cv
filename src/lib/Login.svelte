@@ -69,6 +69,9 @@
       <p class="warning-body">Firefox hates me, or rather, has a memory-related crash in its GPU process when I render 500 3D-transformed DOM elements. No idea why they didn't consider this very normal and definitely not unorthodox workload. Please proceed to an objectively worse browser such as Chrome, or don't play my game.<br>No hard feelings &lt;/3</p>
     </div>
     {:else}
+    <div id="small-screen-warning">
+      This game looks MUCH nicer on bigger screens!
+    </div>
     <p>...anyways, here's a copy of my resume to hold on to!</p>
     <div id="input-row">
       <label id="file-label" for="resume">
@@ -114,6 +117,19 @@
 </div>
 
 <style>
+  #small-screen-warning {
+    display: none;
+    font-size: 1.3rem;
+    color: #aaa;
+    background: #1a1a1a;
+    border-radius: 6px;
+    padding: 8px 14px;
+  }
+  @media (max-width: 950px), (max-height: 900px) {
+    #small-screen-warning {
+      display: block;
+    }
+  }
   #firefox-warning {
     width: 100%;
     height: 100%;
@@ -146,6 +162,21 @@
     background: #1a1a1a;
     border-radius: 6px;
     padding: 6px 12px;
+    max-width: calc(100vw - 44px);
+    text-align: center;
+  }
+  @media (max-width: 1000px) {
+    #footer {
+      flex-direction: column;
+    }
+    #footer .sep {
+      display: none;
+    }
+  }
+  @media (max-width: 700px), (max-height: 700px) {
+    #footer {
+      font-size: 1rem;
+    }
   }
   #footer a {
     color: #CAF;
@@ -263,9 +294,6 @@
     padding: 10px 24px;
     cursor: pointer;
     transition: background 0.15s;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
     max-width: 400px;
   }
   #file-label:hover {

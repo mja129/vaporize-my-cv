@@ -60,9 +60,16 @@
           background: #111;
           height: 100%;
           width: 100%;
-          border-bottom-left-radius: 30px;
      }
      svg {
           border-bottom-left-radius: 30px;
+     }
+     @media (min-width: 1351px) {
+          div {
+               border-bottom-left-radius: 30px;
+          }
+          svg {
+               border-bottom-left-radius: 30px;
+          }
      }
 </style>
