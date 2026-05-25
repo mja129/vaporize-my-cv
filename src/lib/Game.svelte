@@ -50,8 +50,8 @@
      let unlockedSkillCount = $state(3);
      let expUpgraded = $state([false, false, false]);
      let manualDelayLevel = $state(0);
-     let autoPrintUnlocked = $state(false);
-     let autoPrintLevel = $state(0);
+     let autoPrintUnlocked = $state(true);
+     let autoPrintLevel = $state(5);
      let multLevel = $state(0);
      let aiUnlocked = $state(false);
 
@@ -361,7 +361,7 @@
 
      async function vaporize(r: HTMLElement): Promise<[number, number]> {
           const gwindow = document.getElementById('gwindow');
-          const hr = Math.random() * -gwindow!.clientWidth * 3 - 500;
+          const hr = Math.random() * -gwindow!.clientWidth * 2.5 - 500;
           const hb = Math.random() * -gwindow!.clientHeight * 3;
           const dy = Math.random() * 20 + 35;
           return new Promise((resolve) => {
@@ -444,6 +444,8 @@
                <div id="print-btn">
                     <button disabled={blockPrint} onclick={spawn_manual}>Print</button>
                </div>
+               {@render fan()}
+               {@render fan_stand()}
           </div>
           <div id="hud">
                <span>Cope: {shortFormat(score)}</span>
@@ -712,6 +714,27 @@
           90% {
                transform: rotate(20deg);
           }
+     }
+     #fan {
+          position: absolute;
+          bottom: 5px;
+          right: 90px;
+          width: 100px;
+          transform-origin: 50.5% 50.5%;
+          animation-name: spin;
+          animation-duration: 50ms;
+          animation-timing-function: linear;
+          animation-iteration-count: infinite;
+     }
+     @keyframes spin {
+          0% { transform: rotateX(-18deg) rotateY(43deg) rotateZ(0deg); }
+          100% { transform: rotateX(-18deg) rotateY(43deg) rotateZ(-360deg); }
+     }
+     #fan-stand {
+          position: absolute;
+          width: 100px;
+          bottom: -15px;
+          right: 58px;
      }
 
      #upgrades {
@@ -1073,5 +1096,39 @@
     <path class="cls-4" d="m247.04,169.38l-1.15.05-.27-5.73,1.15-.05-.05-1.15,5.73-.27.05,1.15,1.15-.05.05,1.15-2.29.11-.05-1.15-3.44.16.27,5.73,3.44-.16-.05-1.15,2.29-.11.05,1.15-1.15.05.05,1.15-5.73.27-.05-1.15Z"/>
     <path class="cls-4" d="m257.41,170.04l-.11-2.29,2.29-.11.11,2.29-2.29.11Z"/>
   </g>
+</svg>
+{/snippet}
+
+{#snippet fan()}
+<svg id="fan" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 477.48 479.19">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #555;
+        stroke-width: 0px;
+      }
+    </style>
+  </defs>
+  <g>
+    <path class="cls-1" d="m219.27,158.39s-57.35,15.58-63.58,65.45c0,0-97.25-34.29-93.51-99.74S144.46,20.62,144.46,20.62c0,0,50.49-27.43,84.78-9.35s13.71,61.09,13.71,61.09c0,0-25.56,48-23.69,86.03Z"/>
+    <path class="cls-1" d="m154.91,261.17s15.58,57.35,65.45,63.58c0,0-34.29,97.25-99.74,93.51-65.45-3.74-103.48-82.28-103.48-82.28,0,0-27.43-50.49-9.35-84.78,18.08-34.29,61.09-13.71,61.09-13.71,0,0,48,25.56,86.03,23.69Z"/>
+    <path class="cls-1" d="m261.89,325.9s57.35-15.58,63.58-65.45c0,0,97.25,34.29,93.51,99.74-3.74,65.45-82.28,103.48-82.28,103.48,0,0-50.49,27.43-84.78,9.35-34.29-18.08-13.71-61.09-13.71-61.09,0,0,25.56-48,23.69-86.03Z"/>
+    <path class="cls-1" d="m324.13,222.05s-15.58-57.35-65.45-63.58c0,0,34.29-97.25,99.74-93.51,65.45,3.74,103.48,82.28,103.48,82.28,0,0,27.43,50.49,9.35,84.78-18.08,34.29-61.09,13.71-61.09,13.71,0,0-48-25.56-86.03-23.69Z"/>
+  </g>
+  <circle class="cls-1" cx="239.52" cy="242.15" r="68.26"/>
+</svg>
+{/snippet}
+
+{#snippet fan_stand()}
+<svg id="fan-stand" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 479.13 492.15">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #555;
+        stroke-width: 0px;
+      }
+    </style>
+  </defs>
+  <path class="cls-1" d="m373.58,230.04L105.93,145.45s-35.35,15.15-10.1,40.4l236.1,75.32v230.98h63.81v-234.44s.45-18.79-22.16-27.67Z"/>
 </svg>
 {/snippet}
