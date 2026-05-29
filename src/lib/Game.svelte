@@ -50,8 +50,8 @@
      let unlockedSkillCount = $state(3);
      let expUpgraded = $state([false, false, false]);
      let manualDelayLevel = $state(0);
-     let autoPrintUnlocked = $state(true);
-     let autoPrintLevel = $state(5);
+     let autoPrintUnlocked = $state(false);
+     let autoPrintLevel = $state(0);
      let multLevel = $state(0);
      let aiUnlocked = $state(false);
 
